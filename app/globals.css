@@ -691,6 +691,20 @@ button.secondary {
   margin-bottom: 0.2rem;
 }
 
+/* Tag clicável que recolhe/expande a seção até a próxima tag. */
+.chunk-tag-toggle {
+  border: none;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.chunk-tag-chevron {
+  display: inline-block;
+  margin-right: 0.3em;
+  font-size: 0.8em;
+}
+
 .chunk-tag-chorus {
   background: #facc15;
 }

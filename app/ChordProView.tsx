@@ -1,3 +1,6 @@
+'use client';
+
+import { useEffect, useState } from 'react';
 import { ANNOTATION_NEWLINE, parseChordProBody, parseChordProHeader } from '@/lib/chordpro';
 import { nashvilleToChord } from '@/lib/transpose';
 
@@ -18,7 +21,30 @@ function tagClassName(label: string): string {
   return 'chunk-tag';
 }
 
-type AnnotationSegment = { text: string; isAnnotation: boolean };
+type BodyLine = ReturnType<typeof parseChordProBody>[number];
+
+function hasTagChunk(line: BodyLine): boolean {
+  return line.type === 'chords' && line.chunks.some((c) => c.kind === 'tag');
+}
+
+/** Para cada linha, se ela fica escondida por estar numa seção recolhida —
+ * da linha seguinte à da {tag} até antes da próxima linha com tag. As
+ * linhas em branco no fim da seção continuam visíveis, pra manter o
+ * espaçamento entre a tag recolhida e a seção seguinte. */
+function hiddenLines(lines: BodyLine[], collapsed: Set<number>): boolean[] {
+  const hidden = lines.map(() => false);
+  for (const start of collapsed) {
+    if (!lines[start] || !hasTagChunk(lines[start])) continue;
+    let end = start + 1;
+    while (end < lines.length && !hasTagChunk(lines[end])) end++;
+    let last = end - 1;
+    while (last > start && lines[last].type === 'blank') last--;
+    for (let k = start + 1; k <= last; k++) hidden[k] = true;
+  }
+  return hidden;
+}
+
+type AnnotationSegment ={ text: string; isAnnotation: boolean };
 
 /** Splits a string on `<...>` spans, e.g. "Ei <suave> agora" ->
  * ["Ei ", {annotation: "suave"}, " agora"] — used to render performance
@@ -114,6 +140,42 @@ export default function ChordProView({
 }) {
   const header = parseChordProHeader(text);
   const lines = parseChordProBody(text);
+  // Seções recolhidas, pelo índice da linha que tem a {tag}. Zera quando o
+  // texto muda, já que os índices deixam de bater com as linhas.
+  const [collapsed, setCollapsed] = useState<Set<number>>(() => new Set());
+  useEffect(() => setCollapsed(new Set()), [text]);
+  const hidden = hiddenLines(lines, collapsed);
+
+  function toggleSection(lineIndex: number) {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(lineIndex)) next.delete(lineIndex);
+      else next.add(lineIndex);
+      return next;
+    });
+  }
+
+  /** Só a primeira tag da linha ganha a seta e o clique — a seção é da
+   * linha, não de cada tag. */
+  function renderTag(label: string, lineIndex: number, isToggle: boolean, extraClass = '') {
+    const className = `${extraClass}${tagClassName(label)}`;
+    if (!isToggle) return <span className={className}>{label}</span>;
+    const isCollapsed = collapsed.has(lineIndex);
+    return (
+      <button
+        type="button"
+        className={`${className} chunk-tag-toggle`}
+        aria-expanded={!isCollapsed}
+        title={isCollapsed ? 'Expandir seção' : 'Recolher seção'}
+        onClick={() => toggleSection(lineIndex)}
+      >
+        <span className="chunk-tag-chevron" aria-hidden="true">
+          {isCollapsed ? '▸' : '▾'}
+        </span>
+        {label}
+      </button>
+    );
+  }
   const fontVars = {
     ...(lyricFontSize != null ? { '--lyric-font-size': `${lyricFontSize}rem` } : {}),
     ...(chordFontSize != null ? { '--chord-font-size': `${chordFontSize}rem` } : {}),
@@ -213,6 +275,7 @@ export default function ChordProView({
       )}
       <div className="view-body">
         {lines.map((line, i) => {
+          if (hidden[i]) return null;
           if (line.type === 'blank') return <div key={i} className="view-blank" />;
           if (line.type === 'text') {
             return (
@@ -227,17 +290,18 @@ export default function ChordProView({
           // chord-over-lyric) faria o rótulo e a progressão parecerem
           // desalinhados; aqui os dois ficam lado a lado, na mesma linha.
           const hasTag = line.chunks.some((c) => c.kind === 'tag');
+          const firstTag = line.chunks.findIndex((c) => c.kind === 'tag');
           const hasRealLyric = line.chunks.some((c) => c.kind === 'chord' && c.lyric.trim() !== '');
           if (hasTag && !hasRealLyric) {
             return (
               <p key={i} className="view-line">
                 {line.chunks
                   .filter((c) => c.kind === 'tag' || c.chord !== null)
-                  .map((chunk, j) => (
+                  .map((chunk, j, shown) => (
                     <span key={j}>
                       {j > 0 && '  '}
                       {chunk.kind === 'tag' ? (
-                        <span className={tagClassName(chunk.label)}>{chunk.label}</span>
+                        renderTag(chunk.label, i, shown.findIndex((c) => c.kind === 'tag') === j)
                       ) : (
                         <span
                           className={
@@ -260,9 +324,7 @@ export default function ChordProView({
                 chunk.kind === 'tag' ? (
                   <span className="chunk" key={j}>
                     <span className="chunk-chord">{NBSP}</span>
-                    <span className={`chunk-lyric ${tagClassName(chunk.label)}`}>
-                      {chunk.label}
-                    </span>
+                    {renderTag(chunk.label, i, j === firstTag, 'chunk-lyric ')}
                   </span>
                 ) : (
                   <span className="chunk" key={j}>
