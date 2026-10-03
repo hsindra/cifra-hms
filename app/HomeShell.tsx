@@ -22,6 +22,7 @@ import { parseChordProHeader } from '@/lib/chordpro';
 import { songMatchScore, MATCH_THRESHOLD } from '@/lib/fuzzyMatch';
 import type { Setlist, SavedSong } from '@/lib/store';
 import ChordProView from './ChordProView';
+import { useDampedTouchScroll } from './useDampedTouchScroll';
 
 type Mode = 'search' | 'saved' | 'setlists';
 type ViewMode = 'view' | 'code';
@@ -165,6 +166,7 @@ export default function Home({
   initialSongId?: string;
   initialSetlistId?: string;
 }) {
+  useDampedTouchScroll();
   const [mode, setMode] = useState<Mode>('saved');
   const [song, setSong] = useState('');
   const [loading, setLoading] = useState(false);
