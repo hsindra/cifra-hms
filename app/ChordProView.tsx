@@ -111,6 +111,7 @@ export default function ChordProView({
   tagFontSize,
   keySelect,
   onEditCode,
+  onScrollToTop,
 }: {
   text: string;
   viewKey: ViewKey;
@@ -137,6 +138,9 @@ export default function ChordProView({
    * (usado na visualização de setlist — a música individual já tem sua
    * própria aba de código, então não precisa deste link). */
   onEditCode?: () => void;
+  /** Quando presente, mostra um botão "topo" ao lado de "código" que rola a
+   * tela até o início desta música (usado na visualização de setlist). */
+  onScrollToTop?: () => void;
 }) {
   const header = parseChordProHeader(text);
   const lines = parseChordProBody(text);
@@ -259,6 +263,24 @@ export default function ChordProView({
               <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z" />
             </svg>
             código
+          </button>
+        )}
+        {onScrollToTop && (
+          <button type="button" className="source-link" onClick={onScrollToTop}>
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <line x1="12" y1="19" x2="12" y2="5" />
+              <polyline points="5 12 12 5 19 12" />
+            </svg>
+            topo
           </button>
         )}
       </p>

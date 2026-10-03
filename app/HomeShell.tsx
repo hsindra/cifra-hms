@@ -2320,6 +2320,7 @@ export default function Home({
                         onChange: (k) => updateSetlistItemKey(i, k),
                       }}
                       onEditCode={() => openSavedForCodeEdit(item.song!)}
+                      onScrollToTop={() => scrollToSetlistSong(i)}
                     />
                   ) : (
                     <div className="chordpro-view">
