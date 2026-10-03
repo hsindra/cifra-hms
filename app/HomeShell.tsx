@@ -235,6 +235,10 @@ export default function Home({
   const [openSetlist, setOpenSetlist] = useState<ResolvedSetlist | null>(null);
   const [openSetlistError, setOpenSetlistError] = useState<string | null>(null);
   const [setlistGrau, setSetlistGrau] = useState(true);
+  // Grau por música no setlist (caixa "grau" de cada música), por índice —
+  // sobrepõe o setlistGrau geral. Mexer no geral, abrir outro setlist ou
+  // reordenar/remover músicas (que muda os índices) zera tudo.
+  const [setlistSongGrau, setSetlistSongGrau] = useState<Record<number, boolean>>({});
   const [addingToSetlist, setAddingToSetlist] = useState(false);
   const [reorderingSetlist, setReorderingSetlist] = useState(false);
   const [setlistMenuOpen, setSetlistMenuOpen] = useState(false);
@@ -918,6 +922,7 @@ export default function Home({
   async function openSetlistById(id: string) {
     setOpenSetlistError(null);
     setSetlistGrau(true);
+    setSetlistSongGrau({});
     setAddingToSetlist(false);
     try {
       const res = await fetch(`/api/setlists/${id}`);
@@ -975,6 +980,7 @@ export default function Home({
   function removeSetlistItem(index: number) {
     if (!openSetlist) return;
     const updatedItems = openSetlist.items.filter((_, i) => i !== index);
+    setSetlistSongGrau({});
     setOpenSetlist({ ...openSetlist, items: updatedItems });
     persistSetlistItems(openSetlist.id, openSetlist.name, updatedItems);
   }
@@ -992,6 +998,7 @@ export default function Home({
     const newIndex = ids.indexOf(String(over.id));
     if (oldIndex === -1 || newIndex === -1) return;
     const updatedItems = arrayMove(openSetlist.items, oldIndex, newIndex);
+    setSetlistSongGrau({});
     setOpenSetlist({ ...openSetlist, items: updatedItems });
     persistSetlistItems(openSetlist.id, openSetlist.name, updatedItems);
   }
@@ -2192,7 +2199,10 @@ export default function Home({
                       <input
                         type="checkbox"
                         checked={setlistGrau}
-                        onChange={(e) => setSetlistGrau(e.target.checked)}
+                        onChange={(e) => {
+                          setSetlistGrau(e.target.checked);
+                          setSetlistSongGrau({});
+                        }}
                       />
                       <span className="switch-track" />
                     </span>
@@ -2324,7 +2334,7 @@ export default function Home({
                   {item.song ? (
                     <ChordProView
                       text={item.song.chordpro}
-                      viewKey={setlistGrau ? 'graus' : item.preferredKey}
+                      viewKey={(setlistSongGrau[i] ?? setlistGrau) ? 'graus' : item.preferredKey}
                       preferredKey={item.preferredKey}
                       sourceUrl={item.song.sourceUrl}
                       showBeatMark={showBeatMark}
@@ -2339,6 +2349,11 @@ export default function Home({
                       }}
                       onEditCode={() => openSavedForCodeEdit(item.song!)}
                       onScrollToTop={() => scrollToSetlistSong(i)}
+                      grauToggle={{
+                        checked: setlistSongGrau[i] ?? setlistGrau,
+                        onChange: (checked) =>
+                          setSetlistSongGrau((prev) => ({ ...prev, [i]: checked })),
+                      }}
                     />
                   ) : (
                     <div className="chordpro-view">

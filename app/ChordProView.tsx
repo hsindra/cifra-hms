@@ -112,6 +112,7 @@ export default function ChordProView({
   keySelect,
   onEditCode,
   onScrollToTop,
+  grauToggle,
 }: {
   text: string;
   viewKey: ViewKey;
@@ -138,9 +139,13 @@ export default function ChordProView({
    * (usado na visualização de setlist — a música individual já tem sua
    * própria aba de código, então não precisa deste link). */
   onEditCode?: () => void;
-  /** Quando presente, mostra um botão "topo" ao lado de "código" que rola a
-   * tela até o início desta música (usado na visualização de setlist). */
+  /** Quando presente, mostra um botão "topo" no fim da música que rola a
+   * tela até o início dela (usado na visualização de setlist). */
   onScrollToTop?: () => void;
+  /** Quando presente, mostra uma caixa "grau" ao lado de "código": marcada,
+   * a música aparece em graus; desmarcada, em cifras no tom escolhido
+   * (usado na visualização de setlist, por música). */
+  grauToggle?: { checked: boolean; onChange: (checked: boolean) => void };
 }) {
   const header = parseChordProHeader(text);
   const lines = parseChordProBody(text);
@@ -279,23 +284,15 @@ export default function ChordProView({
             código
           </button>
         )}
-        {onScrollToTop && (
-          <button type="button" className="source-link" onClick={onScrollToTop}>
-            <svg
-              width="12"
-              height="12"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <line x1="12" y1="19" x2="12" y2="5" />
-              <polyline points="5 12 12 5 19 12" />
-            </svg>
-            topo
-          </button>
+        {grauToggle && (
+          <label className="source-link source-toggle">
+            <input
+              type="checkbox"
+              checked={grauToggle.checked}
+              onChange={(e) => grauToggle.onChange(e.target.checked)}
+            />
+            grau
+          </label>
         )}
       </p>
       {header.originalMinorKey && (
@@ -393,6 +390,26 @@ export default function ChordProView({
           );
         })}
       </div>
+      {onScrollToTop && (
+        <p className="view-footer">
+          <button type="button" className="source-link" onClick={onScrollToTop}>
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <line x1="12" y1="19" x2="12" y2="5" />
+              <polyline points="5 12 12 5 19 12" />
+            </svg>
+            topo
+          </button>
+        </p>
+      )}
     </div>
   );
 }
