@@ -858,6 +858,36 @@ export default function Home({
     setlistSongBlockRefs.current.get(index)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
+  // Duplo toque/clique numa música do setlist pula pra próxima. Detectado
+  // na mão a partir de dois cliques seguidos (em vez do evento dblclick),
+  // porque no celular o dblclick não chega de forma confiável.
+  const lastSetlistTapRef = useRef<{ time: number; x: number; y: number; index: number } | null>(
+    null
+  );
+
+  function handleSetlistSongClick(e: React.MouseEvent, index: number) {
+    // Cliques em controles (tom, tags, links...) não contam como toque na tela.
+    if ((e.target as Element).closest('button, a, select, input, textarea, label')) {
+      lastSetlistTapRef.current = null;
+      return;
+    }
+    const now = performance.now();
+    const prev = lastSetlistTapRef.current;
+    const isDoubleTap =
+      prev !== null &&
+      prev.index === index &&
+      now - prev.time < 350 &&
+      Math.hypot(e.clientX - prev.x, e.clientY - prev.y) < 40;
+    if (!isDoubleTap) {
+      lastSetlistTapRef.current = { time: now, x: e.clientX, y: e.clientY, index };
+      return;
+    }
+    lastSetlistTapRef.current = null;
+    // O duplo clique no desktop seleciona a palavra embaixo do cursor.
+    window.getSelection()?.removeAllRanges();
+    scrollToSetlistSong(index + 1);
+  }
+
   function toggleSetlistExpanded(id: string) {
     setExpandedSetlistIds((prev) => {
       const next = new Set(prev);
@@ -2267,6 +2297,7 @@ export default function Home({
                 <div
                   key={`${item.songId}-${i}`}
                   className="setlist-song-block"
+                  onClick={(e) => handleSetlistSongClick(e, i)}
                   ref={(el) => {
                     if (el) setlistSongBlockRefs.current.set(i, el);
                     else setlistSongBlockRefs.current.delete(i);

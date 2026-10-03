@@ -991,6 +991,9 @@ footer.disclaimer {
 
 .setlist-song-block {
   margin-bottom: 1.5rem;
+  /* Desliga o zoom por duplo toque, que engoliria o gesto de ir pra
+     próxima música (ver handleSetlistSongClick em HomeShell). */
+  touch-action: manipulation;
 }
 
 .reorder-panel {
