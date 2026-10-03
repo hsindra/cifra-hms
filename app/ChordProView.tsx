@@ -163,11 +163,25 @@ export default function ChordProView({
    * linha, não de cada tag. */
   function renderTag(label: string, lineIndex: number, isToggle: boolean, extraClass = '') {
     const className = `${extraClass}${tagClassName(label)}`;
-    if (!isToggle) return <span className={className}>{label}</span>;
+    // data-section-tag / data-chord marcam o DOM pra quem precisa achar
+    // seções e cifras na tela (ver scrollToSetlistSongStart em HomeShell).
+    // Uma tag com a progressão embutida ("Intro - 1 | 4") conta como cifra.
+    const marks = {
+      'data-section-tag': label,
+      ...(label.includes('|') ? { 'data-chord': '' } : {}),
+    };
+    if (!isToggle) {
+      return (
+        <span className={className} {...marks}>
+          {label}
+        </span>
+      );
+    }
     const isCollapsed = collapsed.has(lineIndex);
     return (
       <button
         type="button"
+        {...marks}
         className={`${className} chunk-tag-toggle`}
         aria-expanded={!isCollapsed}
         title={isCollapsed ? 'Expandir seção' : 'Recolher seção'}
@@ -331,6 +345,7 @@ export default function ChordProView({
                               ? 'chunk-chord chunk-chord-plain'
                               : 'chunk-chord'
                           }
+                          data-chord=""
                         >
                           {displayChord(chunk.chord!)}
                         </span>
@@ -356,6 +371,7 @@ export default function ChordProView({
                           ? 'chunk-chord chunk-chord-plain'
                           : 'chunk-chord'
                       }
+                      data-chord={chunk.chord !== null ? '' : undefined}
                     >
                       {chunk.chord !== null ? displayChord(chunk.chord) : NBSP}
                     </span>

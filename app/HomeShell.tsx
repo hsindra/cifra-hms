@@ -885,7 +885,25 @@ export default function Home({
     lastSetlistTapRef.current = null;
     // O duplo clique no desktop seleciona a palavra embaixo do cursor.
     window.getSelection()?.removeAllRanges();
-    scrollToSetlistSong(index + 1);
+    scrollToSetlistSongStart(index + 1);
+  }
+
+  /** Como scrollToSetlistSong, mas pra quando a música não cabe inteira na
+   * tela: pula o cabeçalho (título, tom, intro...) e deixa no topo a linha
+   * da primeira tag de Verso — ou, sem Verso, a linha da primeira cifra. */
+  function scrollToSetlistSongStart(index: number) {
+    const block = setlistSongBlockRefs.current.get(index);
+    if (!block) return;
+    if (block.getBoundingClientRect().height <= window.innerHeight) {
+      scrollToSetlistSong(index);
+      return;
+    }
+    const verse = Array.from(block.querySelectorAll<HTMLElement>('[data-section-tag]')).find((el) =>
+      /verso/i.test(el.dataset.sectionTag ?? '')
+    );
+    const target = verse ?? block.querySelector<HTMLElement>('[data-chord]');
+    const line = target?.closest<HTMLElement>('.view-line') ?? target ?? block;
+    line.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   function toggleSetlistExpanded(id: string) {
