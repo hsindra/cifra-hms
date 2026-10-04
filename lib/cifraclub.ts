@@ -462,11 +462,48 @@ export async function fetchCifra(
   return parseCifraHtml(res.html, url);
 }
 
+/** Tries alternative Cifra Club addresses for the same song directly (no
+ * scrape), reporting which ones aren't blocked and whether they carry the
+ * key and the chord-line indentation. */
+async function probeDirectVariants(url: string): Promise<Record<string, unknown>[]> {
+  const path = new URL(url).pathname;
+  const variants = [
+    url,
+    `https://cifraclub.com.br${path}`,
+    `https://m.cifraclub.com.br${path}`,
+    `https://www.cifraclub.com.br${path}imprimir.html`,
+    `https://www.cifraclub.com.br${path}simplificada.html`,
+  ];
+  return Promise.all(
+    variants.map(async (v) => {
+      const res = await fetchHtml(v);
+      const info: Record<string, unknown> = { url: v, status: res.status };
+      if (!res.html) return info;
+      info.length = res.html.length;
+      try {
+        const page = parseCifraHtml(res.html, v);
+        info.key = page.key;
+        info.keyInferred = page.keyInferred;
+        info.start = page.rawText.slice(0, 300);
+      } catch (err) {
+        info.parseError = String(err);
+        info.htmlStart = res.html.slice(0, 300);
+      }
+      return info;
+    })
+  );
+}
+
 /** Diagnostic for /api/debug/cifra: what the direct fetch and the Serper
  * scrape return for a page, and what we extract from it. */
 export async function debugCifra(url: string): Promise<Record<string, unknown>> {
   const direct = await fetchHtml(url);
-  const out: Record<string, unknown> = { url, directStatus: direct.status };
+  const out: Record<string, unknown> = {
+    url,
+    region: process.env.VERCEL_REGION ?? null,
+    directStatus: direct.status,
+    probes: await probeDirectVariants(url),
+  };
   const apiKey = process.env.SERPER_API_KEY;
   if (!apiKey) return { ...out, scrape: 'SERPER_API_KEY ausente' };
   const res = await fetch('https://scrape.serper.dev', {
