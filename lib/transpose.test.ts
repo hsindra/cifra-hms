@@ -6,6 +6,7 @@ import {
   isMinorKey,
   relativeMajorKey,
   InvalidKeyError,
+  inferKeyFromChords,
 } from './transpose.ts';
 
 test('converts diatonic chords in a major key', () => {
@@ -107,4 +108,12 @@ test('a song fetched in a minor key reads its tonic as a borrowed degree off the
   assert.equal(chordToNashville('F', major), '1');
   assert.equal(chordToNashville('C', major), '5');
   assert.equal(chordToNashville('Bb', major), '4');
+});
+
+test('infers the key from chords when the page has none', () => {
+  assert.equal(inferKeyFromChords(['G', 'D', 'Em', 'C', 'G', 'D', 'C', 'G']), 'G');
+  assert.equal(inferKeyFromChords(['A', 'F#m', 'D', 'A', 'Bm', 'A', 'D', 'E', 'A']), 'A');
+  assert.equal(inferKeyFromChords(['Bb', 'F', 'Gm', 'Eb', 'Bb', 'F/A', 'Eb']), 'Bb');
+  assert.equal(inferKeyFromChords(['C#', 'G#', 'A#m', 'F#', 'C#']), 'C#');
+  assert.equal(inferKeyFromChords([]), undefined);
 });

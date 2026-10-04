@@ -135,3 +135,45 @@ export function relativeMajorKey(minorKey: string): string {
   const majorTonic = (parsed.tonic + 3) % 12;
   return semitoneToNote(majorTonic, parsed.preferFlats);
 }
+
+const MINOR_DEGREES = new Set([2, 4, 9]); // 2m, 3m, 6m
+const SHARP_KEY_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+const FLAT_KEY_NAMES = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
+
+/** Best-guess major key for a list of chords (in song order), for cifras
+ * whose page didn't state a "Tom:". Each key scores how well its diatonic
+ * chords (1, 2m, 3m, 4, 5, 6m) cover the song's chords, plus a bonus when
+ * the song starts or ends on its tonic. Returns undefined with no chords. */
+export function inferKeyFromChords(chords: string[]): string | undefined {
+  const parsed = chords
+    .map((c) => c.match(CHORD_PARSE_RE))
+    .filter((m): m is RegExpMatchArray => m !== null)
+    .map(([, letter, accidental, suffix]) => ({
+      root: noteToSemitone(letter, accidental),
+      minor: /^m(?!aj)/.test(suffix),
+      sharp: accidental === '#',
+    }));
+  if (parsed.length === 0) return undefined;
+
+  let bestTonic = 0;
+  let bestScore = -Infinity;
+  for (let tonic = 0; tonic < 12; tonic++) {
+    let score = 0;
+    for (const c of parsed) {
+      const distance = (c.root - tonic + 12) % 12;
+      if (distance === 11) continue; // 7º grau (diminuto) é raro — não conta
+      if (!MAJOR_SCALE.includes(distance)) continue;
+      score += MINOR_DEGREES.has(distance) === c.minor ? 1 : 0.5;
+    }
+    const first = parsed[0];
+    const last = parsed[parsed.length - 1];
+    if (first.root === tonic && !first.minor) score += 2;
+    if (last.root === tonic && !last.minor) score += 2;
+    if (score > bestScore) {
+      bestScore = score;
+      bestTonic = tonic;
+    }
+  }
+  const names = parsed.some((c) => c.sharp) ? SHARP_KEY_NAMES : FLAT_KEY_NAMES;
+  return names[bestTonic];
+}

@@ -1,5 +1,6 @@
 import * as cheerio from 'cheerio';
 import { slugify } from './slugify';
+import { inferKeyFromChords } from './transpose';
 
 type Node = {
   type: string;
@@ -75,6 +76,16 @@ function scorePreAsCifra(text: string): number {
     if (words.every((w) => CHORD_TOKEN.test(w))) score += words.length;
   }
   return score;
+}
+
+/** Every chord in the cifra's chord-only lines, in order. */
+function chordsIn(text: string): string[] {
+  const chords: string[] = [];
+  for (const line of text.split('\n')) {
+    const words = line.match(/\S+/g);
+    if (words && words.every((w) => CHORD_TOKEN.test(w))) chords.push(...words);
+  }
+  return chords;
 }
 
 export interface CifraPage {
@@ -309,7 +320,8 @@ function buildCifraPage(
   return {
     title: title || 'Título desconhecido',
     artist: artist || 'Artista desconhecido',
-    key: keyMatch?.[1],
+    // Sem "Tom:" na página, deduz pelos acordes — melhor que descartar a cifra.
+    key: keyMatch?.[1] ?? inferKeyFromChords(chordsIn(best.text)),
     capo: capoMatch?.[1],
     rawText: best.text,
     sourceUrl: url,
