@@ -196,8 +196,7 @@ export function flowSections(body: string): string {
   const out: string[] = [];
   let paragraph: string[] = [];
   const flush = () => {
-    // Espaços de alinhamento do Cifra Club ("[6m]    Perplexos") viram um só.
-    if (paragraph.length) out.push(paragraph.join(' ').replace(/ {2,}/g, ' '));
+    if (paragraph.length) out.push(paragraph.join(' '));
     paragraph = [];
   };
   for (const line of body.split('\n')) {
