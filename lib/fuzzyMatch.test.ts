@@ -19,3 +19,19 @@ test('scores unrelated query low', () => {
 test('empty query scores 0', () => {
   assert.equal(songMatchScore('', 'Só Tu És Santo', 'MORADA'), 0);
 });
+
+test('short words and stopwords do not make unrelated songs match', () => {
+  for (const [title, artist] of [
+    ['Nada Além do Sangue / Alvo Mais Que a Neve (Pot-Pourri)', 'Fernandinho'],
+    ['Tudo é Teu', 'Drops INA'],
+    ['Tudo é p tua glória', ''],
+    ['É Ele', ''],
+  ]) {
+    const score = songMatchScore('Geração que danca', title, artist);
+    assert.ok(score < MATCH_THRESHOLD, `${title}: expected < ${MATCH_THRESHOLD}, got ${score}`);
+  }
+});
+
+test('matches the right song despite stopwords in the query', () => {
+  assert.equal(songMatchScore('Geração que danca', 'Geração Que Dança', 'Ministério Zoe'), 1);
+});

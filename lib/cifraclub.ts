@@ -24,8 +24,15 @@ async function fetchHtml(url: string): Promise<FetchResult> {
     const res = await fetch(url, {
       headers: {
         'User-Agent': USER_AGENT,
-        Accept: 'text/html,application/xhtml+xml',
-        'Accept-Language': 'pt-BR,pt;q=0.9',
+        Accept:
+          'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+        'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+        'Cache-Control': 'no-cache',
+        'Upgrade-Insecure-Requests': '1',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'none',
+        'Sec-Fetch-User': '?1',
       },
       redirect: 'follow',
     });
@@ -192,6 +199,9 @@ function slugSimilarity(a: string, b: string): number {
 
 const MAX_CANDIDATES_TO_CHECK = 8;
 const MAX_RESULTS = 6;
+/** The scrape fallback costs Serper credits per page, so on a 403 only the
+ * best-ranked candidates go through it. */
+const MAX_SCRAPED_CANDIDATES = 4;
 
 /** Thrown when no song page could be confirmed; carries a diagnostic breakdown
  * of how many candidates were found/checked at each step, since this is the
@@ -242,9 +252,9 @@ export async function searchCifra(artist: string, song: string): Promise<CifraPa
     .slice(0, MAX_CANDIDATES_TO_CHECK);
 
   const settled = await Promise.all(
-    ranked.map(async ({ url }) => {
+    ranked.map(async ({ url }, i) => {
       try {
-        return await fetchCifra(url);
+        return await fetchCifra(url, { allowScrape: i < MAX_SCRAPED_CANDIDATES });
       } catch (err) {
         if (err instanceof CifraAccessError) blocked = true;
         return null;
@@ -269,50 +279,103 @@ export async function searchCifra(artist: string, song: string): Promise<CifraPa
   return [...dedup.values()].slice(0, MAX_RESULTS);
 }
 
-export async function fetchCifra(url: string): Promise<CifraPage> {
-  const res = await fetchHtml(url);
-  if (res.status === 403) throw new CifraAccessError(403);
-  if (!res.html) {
-    throw new Error(`Não foi possível acessar ${url} (HTTP ${res.status || 'erro de rede'}).`);
-  }
-  const $ = cheerio.load(res.html);
-
-  const candidates = $('pre')
-    .toArray()
-    .map((el) => {
-      const text = extractPreText(el);
-      return { text, score: scorePreAsCifra(text) };
-    });
-  const best = candidates.reduce<{ text: string; score: number } | null>(
-    (acc, cur) => (!acc || cur.score > acc.score ? cur : acc),
-    null
-  );
+/** Picks the <pre>-like block that looks most like a cifra and pulls key/capo
+ * out of the surrounding page text. Shared by the direct-HTML and scrape paths. */
+function buildCifraPage(
+  blocks: string[],
+  pageText: string,
+  title: string,
+  artist: string,
+  url: string
+): CifraPage {
+  const best = blocks
+    .map((text) => ({ text, score: scorePreAsCifra(text) }))
+    .reduce<{ text: string; score: number } | null>(
+      (acc, cur) => (!acc || cur.score > acc.score ? cur : acc),
+      null
+    );
   if (!best || best.score === 0) {
     throw new Error('Não encontrei a cifra (bloco de acordes) nessa página.');
   }
-
-  const pageText = $('body').text();
   const keyMatch = pageText.match(/Tom\s*:?\s*([A-G](?:#|b)?m?)/);
   const capoMatch = pageText.match(/Capotraste\s*(?:na)?\s*(\d+)[ªº]?\s*casa/i);
-
-  const title =
-    $('h1.t1').first().text().trim() ||
-    $('meta[property="og:title"]').attr('content')?.split(' - ')[0]?.trim() ||
-    $('title').text().split(' - ')[0]?.trim() ||
-    'Título desconhecido';
-
-  const artist =
-    $('h2.t3 a').first().text().trim() ||
-    $('.cifra-header a[href^="/"]').first().text().trim() ||
-    $('meta[property="og:title"]').attr('content')?.split(' - ')[1]?.trim() ||
-    'Artista desconhecido';
-
   return {
-    title,
-    artist,
+    title: title || 'Título desconhecido',
+    artist: artist || 'Artista desconhecido',
     key: keyMatch?.[1],
     capo: capoMatch?.[1],
     rawText: best.text,
     sourceUrl: url,
   };
+}
+
+function parseCifraHtml(html: string, url: string): CifraPage {
+  const $ = cheerio.load(html);
+  const blocks = $('pre')
+    .toArray()
+    .map((el) => extractPreText(el));
+
+  const title =
+    $('h1.t1').first().text().trim() ||
+    $('meta[property="og:title"]').attr('content')?.split(' - ')[0]?.trim() ||
+    $('title').text().split(' - ')[0]?.trim() ||
+    '';
+
+  const artist =
+    $('h2.t3 a').first().text().trim() ||
+    $('.cifra-header a[href^="/"]').first().text().trim() ||
+    $('meta[property="og:title"]').attr('content')?.split(' - ')[1]?.trim() ||
+    '';
+
+  return buildCifraPage(blocks, $('body').text(), title, artist, url);
+}
+
+interface SerperScrapeResponse {
+  text?: string;
+  markdown?: string;
+  metadata?: Record<string, string | undefined>;
+}
+
+/** Fallback for when Cifra Club blocks our servers (HTTP 403, typically for
+ * datacenter IPs like Vercel's): fetches the page through Serper's scrape
+ * service, which uses the same SERPER_API_KEY. The <pre> comes back as a
+ * fenced code block in the markdown. */
+async function scrapeCifra(url: string): Promise<CifraPage> {
+  const apiKey = process.env.SERPER_API_KEY;
+  if (!apiKey) throw new CifraAccessError(403);
+  const res = await fetch('https://scrape.serper.dev', {
+    method: 'POST',
+    headers: { 'X-API-KEY': apiKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url, includeMarkdown: true }),
+  });
+  if (!res.ok) throw new CifraAccessError(403);
+  const data = (await res.json()) as SerperScrapeResponse;
+  const markdown = data.markdown ?? '';
+  const pageText = data.text ?? markdown;
+
+  const blocks: string[] = [];
+  for (const m of markdown.matchAll(/```[^\n]*\n([\s\S]*?)```/g)) {
+    // Acordes podem vir em negrito/código dentro do bloco — limpa a marcação
+    // sem mexer nos espaços (o alinhamento acorde/letra depende deles).
+    blocks.push(m[1].replace(/\*\*|`/g, '').replace(/\n$/, ''));
+  }
+
+  const ogTitle = data.metadata?.['og:title'] ?? data.metadata?.title ?? '';
+  const [title = '', artist = ''] = ogTitle.split(' - ').map((p) => p.trim());
+  return buildCifraPage(blocks, pageText, title, artist, url);
+}
+
+export async function fetchCifra(
+  url: string,
+  { allowScrape = true }: { allowScrape?: boolean } = {}
+): Promise<CifraPage> {
+  const res = await fetchHtml(url);
+  if (res.status === 403) {
+    if (!allowScrape) throw new CifraAccessError(403);
+    return scrapeCifra(url);
+  }
+  if (!res.html) {
+    throw new Error(`Não foi possível acessar ${url} (HTTP ${res.status || 'erro de rede'}).`);
+  }
+  return parseCifraHtml(res.html, url);
 }
