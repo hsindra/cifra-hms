@@ -129,11 +129,14 @@ function tagWithProgression(label: string, chords: string[]): string {
  * progression the "acordes nas tags" button may (re)write. */
 const TAG_HEADER_LINE = /^\s*\{([^:{}]+)\}((?:\s*\[[^\]]*\])*)\s*$/;
 
+/** A stanza longer than this closes its cycle here (see addSectionProgressions). */
+const TAG_CYCLE_CHORDS = 4;
+
 /** For the "acordes nas tags" button: (re)writes every section header's
  * progression from its section's first stanza — the bracketed chords from
  * the tag down to the first blank line (or the next tag), repeats in a row
- * collapsed — as "{Tag}[ 1 | 6m | 4 | 1 ]", replacing any chords already
- * after the tag. "%" and chords with a "." are
+ * collapsed, at most 4 (the cycle) — as "{Tag}[ 1 | 6m | 4 | 1 ]",
+ * replacing any chords already after the tag. "%" and chords with a "." are
  * skipped. A tag followed by lyrics on its line, or whose section has no
  * chords, is left as is. Works on graus or concrete chords alike. */
 export function addSectionProgressions(chordpro: string): string {
@@ -159,7 +162,7 @@ export function addSectionProgressions(chordpro: string): string {
       }
       if (chords.length === 0) return line;
       const progression = chords.filter((c, k) => c !== chords[k - 1]);
-      return tagWithProgression(tag[1].trim(), progression);
+      return tagWithProgression(tag[1].trim(), progression.slice(0, TAG_CYCLE_CHORDS));
     })
     .join('\n');
 }

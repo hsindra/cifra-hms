@@ -358,7 +358,7 @@ test('addSectionProgressions (re)writes tag progressions from their sections', a
     addSectionProgressions(src),
     [
       '{title: T}',
-      '{Verso}[ 1 | 6m | 4 | 1 | 6m ]',
+      '{Verso}[ 1 | 6m | 4 | 1 ]',
       '[1]A tua [6m]graça [%] nos [4.]faz [4]faz [1]dançar [6m]com',
       '{Refrão}[ 4 | 5 ]',
       '[4]la [5]la',
@@ -392,4 +392,10 @@ test('addSectionProgressions uses the first stanza, up to a blank line, without 
   const out = addSectionProgressions(src).split('\n');
   assert.equal(out[0], '{Verso}[ 1 | 6m | 4 | 1 ]');
   assert.equal(out[9], '{Pré-refrão}[ 2m | 1/3 ]');
+});
+
+test('addSectionProgressions closes the cycle at 4 chords when the stanza is longer', async () => {
+  const { addSectionProgressions } = await import('./chordpro.ts');
+  const out = addSectionProgressions('{Refrão}\n[1]a [5]b [4.]c [6m]d\n[4]e [1]f [5]g\n');
+  assert.equal(out.split('\n')[0], '{Refrão}[ 1 | 5 | 6m | 4 ]');
 });
