@@ -23,6 +23,15 @@ import { addSectionProgressions, flowSections, parseChordProHeader } from '@/lib
 const FLOW_BUTTON_TITLE = 'Juntar linhas de cada seção (quebra pela largura da tela)';
 const TAG_CHORDS_BUTTON_TITLE = 'Colocar nas tags sem acordes a sequência de acordes da seção';
 
+/** Atalhos de criar tag de seção no editor de código — o rótulo segue o
+ * mesmo texto que ChordProView usa pra colorir a tag (refrão, ponte...). */
+const SECTION_TAG_BUTTONS = [
+  { letter: 'V', label: 'Verso' },
+  { letter: 'Pr', label: 'Pré-refrão' },
+  { letter: 'R', label: 'Refrão' },
+  { letter: 'P', label: 'Ponte' },
+];
+
 // Ícone de etiqueta (tag).
 const TAG_CHORDS_ICON = (
   <svg
@@ -519,6 +528,44 @@ export default function Home({
     if (!chordpro) return;
     const next = addSectionProgressions(chordpro);
     if (next !== chordpro) updateChordpro(next);
+  }
+
+  /** Botões V/Pr/R/P: insere "{Rótulo}" onde está o cursor, numa linha só
+   * dela (quebra antes/depois se o cursor estiver no meio de uma linha),
+   * substituindo a seleção quando houver uma. */
+  function insertSectionTag(label: string) {
+    const el = codeTextareaRef.current;
+    if (!el || chordpro === null) return;
+    const start = el.selectionStart;
+    const end = el.selectionEnd;
+    const before = chordpro.slice(0, start);
+    const after = chordpro.slice(end);
+    const tag = `{${label}}`;
+    const insertion =
+      (before === '' || before.endsWith('\n') ? '' : '\n') +
+      tag +
+      (after === '' || after.startsWith('\n') ? '' : '\n');
+    updateChordpro(before + insertion + after);
+    const cursor = start + insertion.length;
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(cursor, cursor);
+    });
+  }
+
+  function renderSectionTagButtons() {
+    return SECTION_TAG_BUTTONS.map(({ letter, label }) => (
+      <button
+        key={letter}
+        type="button"
+        className="icon-button"
+        title={`Criar tag {${label}} no cursor`}
+        aria-label={`Criar tag ${label}`}
+        onClick={() => insertSectionTag(label)}
+      >
+        {letter}
+      </button>
+    ));
   }
 
   /** Botão de atalho "%": insere "[%]" (acorde "repete o anterior", notação
@@ -1676,6 +1723,7 @@ export default function Home({
                 >
                   %
                 </button>
+                {renderSectionTagButtons()}
                 <button
                   type="button"
                   className="icon-button"
@@ -2473,6 +2521,7 @@ export default function Home({
               >
                 %
               </button>
+              {renderSectionTagButtons()}
               <button
                 type="button"
                 className="icon-button"
