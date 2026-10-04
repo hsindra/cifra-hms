@@ -324,3 +324,11 @@ test('flowSections joins each section into one line, keeping alignment spaces', 
     '{Intro}[ A | D ]\n\n{Verso}\n[A]  Pressionados Mas não desanimados [F#m]    Perplexos\n\n{Refrão}\n[D]Fé\n'
   );
 });
+
+test('flowSections keeps header directives on their own lines', async () => {
+  const { flowSections } = await import('./chordpro.ts');
+  assert.equal(
+    flowSections('{title: T}\n{key: A}\n\n{Verso}\n[1]la\nlá\n'),
+    '{title: T}\n{key: A}\n\n{Verso}\n[1]la lá\n'
+  );
+});

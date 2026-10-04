@@ -18,7 +18,28 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import type { ResolvedSetlist, SongLookupResponse } from '@/lib/types';
-import { parseChordProHeader } from '@/lib/chordpro';
+import { flowSections, parseChordProHeader } from '@/lib/chordpro';
+
+const FLOW_BUTTON_TITLE = 'Juntar linhas de cada seção (quebra pela largura da tela)';
+
+// Ícone "quebra automática de texto": linhas com uma seta de retorno.
+const FLOW_ICON = (
+  <svg
+    width="16"
+    height="16"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M3 6h18" />
+    <path d="M3 12h15a3 3 0 0 1 0 6h-4" />
+    <path d="m16 16-2 2 2 2" />
+    <path d="M3 18h7" />
+  </svg>
+);
 import { songMatchScore, MATCH_THRESHOLD } from '@/lib/fuzzyMatch';
 import type { Setlist, SavedSong } from '@/lib/store';
 import ChordProView from './ChordProView';
@@ -462,6 +483,15 @@ export default function Home({
     setUndoSnapshot(null);
     setDirty(true);
     setSaveMessage(null);
+  }
+
+  /** Botão "juntar linhas": junta as linhas de cada seção numa só, pra
+   * quebrar pela largura da tela em vez das quebras curtas do Cifra Club.
+   * Passa por updateChordpro, então "Desfazer" volta ao original. */
+  function handleFlowSections() {
+    if (!chordpro) return;
+    const next = flowSections(chordpro);
+    if (next !== chordpro) updateChordpro(next);
   }
 
   /** Botão de atalho "%": insere "[%]" (acorde "repete o anterior", notação
@@ -1622,6 +1652,15 @@ export default function Home({
                 <button
                   type="button"
                   className="icon-button"
+                  title={FLOW_BUTTON_TITLE}
+                  aria-label={FLOW_BUTTON_TITLE}
+                  onClick={handleFlowSections}
+                >
+                  {FLOW_ICON}
+                </button>
+                <button
+                  type="button"
+                  className="icon-button"
                   title="Desfazer última edição"
                   aria-label="Desfazer última edição"
                   disabled={undoSnapshot === null}
@@ -2397,6 +2436,15 @@ export default function Home({
                 onClick={insertPercentChord}
               >
                 %
+              </button>
+              <button
+                type="button"
+                className="icon-button"
+                title={FLOW_BUTTON_TITLE}
+                aria-label={FLOW_BUTTON_TITLE}
+                onClick={handleFlowSections}
+              >
+                {FLOW_ICON}
               </button>
               <button
                 type="button"

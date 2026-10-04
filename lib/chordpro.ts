@@ -190,8 +190,10 @@ export interface SongMeta {
 
 /** Joins each section's lines into one, so the view wraps them only where
  * they overflow the frame (between words) instead of at Cifra Club's short
- * line breaks. Sections are delimited by `{tag}` lines, which stay on their
- * own line with a blank line before them. */
+ * line breaks — applied on demand by the "juntar linhas" button in the code
+ * view. Sections are delimited by `{tag}` lines, which stay on their own
+ * line with a blank line before them; `{key: ...}`-style directives also
+ * stay on their own lines. */
 export function flowSections(body: string): string {
   const out: string[] = [];
   let paragraph: string[] = [];
@@ -201,6 +203,11 @@ export function flowSections(body: string): string {
   };
   for (const line of body.split('\n')) {
     if (line.trim() === '') continue;
+    if (DIRECTIVE_LINE.test(line)) {
+      flush();
+      out.push(line.trimEnd());
+      continue;
+    }
     if (/^\s*\{[^:{}]+\}/.test(line)) {
       flush();
       if (out.length) out.push('');
@@ -214,7 +221,7 @@ export function flowSections(body: string): string {
 }
 
 export function buildChordPro(meta: SongMeta, rawCifraText: string): string {
-  const body = flowSections(chordsOverLyricsToChordPro(rawCifraText));
+  const body = chordsOverLyricsToChordPro(rawCifraText);
   const header: string[] = [];
   header.push(`{title: ${meta.title}}`);
   header.push(`{artist: ${meta.artist}}`);
