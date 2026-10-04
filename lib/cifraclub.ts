@@ -139,7 +139,11 @@ async function serperSearchCandidates(query: string): Promise<string[]> {
     body: JSON.stringify({ q: `site:cifraclub.com.br ${query}` }),
   });
   if (res.status === 401 || res.status === 403) throw new SearchConfigError();
-  if (!res.ok) return [];
+  if (!res.ok) {
+    // Ex: créditos esgotados — sem isso o erro virava um "0 link(s)" sem pista.
+    const detail = (await res.text().catch(() => '')).slice(0, 200);
+    throw new Error(`Busca do Serper falhou (HTTP ${res.status})${detail ? `: ${detail}` : ''}.`);
+  }
 
   const data = (await res.json()) as SerperSearchResponse;
   const links: string[] = [];

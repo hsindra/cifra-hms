@@ -22,6 +22,9 @@ export interface SongLookupResponse {
 
 export interface SongSearchResponse {
   results: SongLookupResponse[];
+  /** Set when the Cifra Club search failed but saved songs matched — the
+   * results then hold only saved songs, and this explains why. */
+  webSearchError?: string;
 }
 
 export interface ApiErrorResponse {

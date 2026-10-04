@@ -273,6 +273,11 @@ export default function Home({
       }
       const found = data.results as SongLookupResponse[];
       setResults(found);
+      if (data.webSearchError) {
+        // Só vieram músicas salvas — avisa e não abre direto, senão o aviso some.
+        setError(`Mostrando só músicas salvas. ${data.webSearchError}`);
+        return;
+      }
       if (found.length === 1) openResult(found[0]);
     } catch {
       setError('Falha de rede ao buscar a música.');
@@ -1042,6 +1047,9 @@ export default function Home({
         return;
       }
       setSetlistSearchResults(data.results as SongLookupResponse[]);
+      if (data.webSearchError) {
+        setSetlistPickerError(`Mostrando só músicas salvas. ${data.webSearchError}`);
+      }
     } catch {
       setSetlistPickerError('Falha de rede ao buscar a música.');
       setSetlistSearchResults(null);
@@ -1852,7 +1860,7 @@ export default function Home({
 
       {mode === 'search' && error && <p className="error">{error}</p>}
 
-      {mode === 'search' && results && results.length > 1 && !chordpro && (
+      {mode === 'search' && results && (results.length > 1 || error) && !chordpro && (
         <ul className="results">
           {results.map((r) => (
             <li key={r.sourceUrl}>

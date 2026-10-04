@@ -120,11 +120,15 @@ export async function POST(req: NextRequest) {
     const savedUrls = new Set(savedMatches.map((s) => s.sourceUrl).filter(Boolean));
 
     const results: SongLookupResponse[] = savedMatches.map(savedToResult);
+    let webSearchError: string | undefined;
 
     if (!webSearch.ok) {
       // Sem músicas salvas pra mostrar, o erro da busca na internet é o único
-      // resultado possível — propaga. Com salvas, elas bastam como resposta.
+      // resultado possível — propaga. Com salvas, elas vão como resposta, mas
+      // o erro segue junto pra UI avisar que o Cifra Club não foi consultado.
       if (results.length === 0) throw webSearch.error;
+      const e = webSearch.error;
+      webSearchError = e instanceof Error ? e.message : 'Erro ao buscar no Cifra Club.';
     } else {
       for (const c of webSearch.candidates) {
         if (c.sourceUrl && savedUrls.has(c.sourceUrl)) continue; // já apareceu como salva
@@ -137,7 +141,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const response: SongSearchResponse = { results };
+    const response: SongSearchResponse = { results, webSearchError };
     return NextResponse.json(response);
   } catch (err) {
     if (err instanceof MissingKeyError) {
