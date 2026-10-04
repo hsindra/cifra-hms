@@ -142,8 +142,11 @@ const FLAT_KEY_NAMES = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'B
 
 /** Best-guess major key for a list of chords (in song order), for cifras
  * whose page didn't state a "Tom:". Each key scores how well its diatonic
- * chords (1, 2m, 3m, 4, 5, 6m) cover the song's chords, plus a bonus when
- * the song starts or ends on its tonic. Returns undefined with no chords. */
+ * chords (1, 2m, 3m, 4, 5, 6m) cover the song's chords; the tonic chord
+ * counts double (it's usually the most frequent one), the borrowed b7 (G in
+ * A — very common in worship songs) counts half, and starting/ending on the
+ * tonic adds a bonus. Without those, a song in A with G and Em7 scores higher
+ * in D. Returns undefined with no chords. */
 export function inferKeyFromChords(chords: string[]): string | undefined {
   const parsed = chords
     .map((c) => c.match(CHORD_PARSE_RE))
@@ -161,13 +164,16 @@ export function inferKeyFromChords(chords: string[]): string | undefined {
     let score = 0;
     for (const c of parsed) {
       const distance = (c.root - tonic + 12) % 12;
-      if (distance === 11) continue; // 7º grau (diminuto) é raro — não conta
-      if (!MAJOR_SCALE.includes(distance)) continue;
-      score += MINOR_DEGREES.has(distance) === c.minor ? 1 : 0.5;
+      if (distance === 0 && !c.minor) score += 2;
+      else if (distance === 10 && !c.minor) score += 0.5; // b7 emprestado
+      else if (distance === 11) continue; // 7º grau (diminuto) é raro — não conta
+      else if (MAJOR_SCALE.includes(distance)) {
+        score += MINOR_DEGREES.has(distance) === c.minor ? 1 : 0.5;
+      }
     }
     const first = parsed[0];
     const last = parsed[parsed.length - 1];
-    if (first.root === tonic && !first.minor) score += 2;
+    if (first.root === tonic && !first.minor) score += 3;
     if (last.root === tonic && !last.minor) score += 2;
     if (score > bestScore) {
       bestScore = score;

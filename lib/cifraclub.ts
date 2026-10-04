@@ -92,8 +92,7 @@ function chordsIn(text: string): string[] {
   const chords: string[] = [];
   for (const line of text.split('\n')) {
     // "[Intro] A Em7 G D" também conta — ignora o rótulo da seção.
-    const words = line.replace(/^\s*\[[^\]]*\]/, '').match(/\S+/g);
-    if (words && words.every((w) => CHORD_TOKEN.test(w))) chords.push(...words);
+    if (isChordOnlyLine(line)) chords.push(...line.replace(/^\s*\[[^\]]*\]/, '').match(/\S+/g)!);
   }
   return chords;
 }
@@ -360,6 +359,33 @@ function parseCifraHtml(html: string, url: string): CifraPage {
   return buildCifraPage(blocks, $('body').text(), title, artist, url);
 }
 
+function isChordOnlyLine(line: string): boolean {
+  const words = line.replace(/^\s*\[[^\]]*\]/, '').match(/\S+/g);
+  return !!words && words.every((w) => CHORD_TOKEN.test(w));
+}
+
+/** The cifra part of a scraped markdown/text page: drops "# title" lines,
+ * un-indents a 4-space indented code block, and keeps from the first section
+ * label ("[Intro] A Em7 G D", "[Primeira Parte]") or chord line through the
+ * last chord line plus the lyric lines right below it. */
+function extractCifraSpan(source: string): string | null {
+  let lines = source
+    .replace(/\*\*|`/g, '')
+    .split('\n')
+    .filter((l) => !/^#{1,6}\s/.test(l));
+  const nonBlank = lines.filter((l) => l.trim());
+  if (nonBlank.length && nonBlank.filter((l) => l.startsWith('    ')).length >= nonBlank.length / 2) {
+    lines = lines.map((l) => (l.startsWith('    ') ? l.slice(4) : l));
+  }
+  const isStart = (l: string) => isChordOnlyLine(l) || /^\s*\[[^\]]+\]\s*$/.test(l);
+  const first = lines.findIndex(isStart);
+  const lastChord = lines.findLastIndex(isChordOnlyLine);
+  if (first < 0 || lastChord < 0) return null;
+  let end = lastChord + 1;
+  while (end < lines.length && lines[end].trim() && !isChordOnlyLine(lines[end])) end++;
+  return lines.slice(first, end).join('\n');
+}
+
 interface SerperScrapeResponse {
   text?: string;
   markdown?: string;
@@ -398,18 +424,13 @@ async function scrapeCifra(url: string): Promise<CifraPage> {
     blocks.push(m[1].replace(/\*\*|`/g, '').replace(/\n$/, ''));
   }
 
-  // Sem bloco de código no markdown: tenta o trecho do texto que vai da
-  // primeira à última linha só de acordes (o alinhamento pode sair pior).
+  // Sem ``` no markdown (o Serper devolve a cifra como bloco indentado com 4
+  // espaços): pega do primeiro rótulo de seção/linha de acordes até a última
+  // linha de acordes e a letra logo abaixo dela.
   if (blocks.length === 0) {
     for (const source of [markdown, data.text ?? '']) {
-      const lines = source.replace(/\*\*|`/g, '').split('\n');
-      const isChordLine = (l: string) => {
-        const words = l.match(/\S+/g);
-        return !!words && words.every((w) => CHORD_TOKEN.test(w));
-      };
-      const first = lines.findIndex(isChordLine);
-      const last = lines.findLastIndex(isChordLine);
-      if (first >= 0) blocks.push(lines.slice(first, last + 2).join('\n'));
+      const block = extractCifraSpan(source);
+      if (block) blocks.push(block);
     }
   }
 
@@ -477,6 +498,7 @@ export async function debugCifra(url: string): Promise<Record<string, unknown>> 
   } catch (err) {
     out.parseError = String(err);
   }
-  out.markdownStart = markdown.slice(0, 3000);
+  out.markdownStart = markdown.slice(0, 1500);
+  out.textStart = text.slice(0, 1500);
   return out;
 }

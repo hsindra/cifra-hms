@@ -117,3 +117,17 @@ test('infers the key from chords when the page has none', () => {
   assert.equal(inferKeyFromChords(['C#', 'G#', 'A#m', 'F#', 'C#']), 'C#');
   assert.equal(inferKeyFromChords([]), undefined);
 });
+
+test('infers A (not D) for a worship song in A using G and Em7 (Estamos de Pé)', () => {
+  const verse = ['A', 'F#m', 'D', 'A', 'F#m', 'D2', 'A'];
+  const chorus = ['A4', 'A', 'E6', 'E', 'Bm', 'A/C#', 'D2', 'A4', 'A', 'E6', 'E', 'G', 'D', 'A'];
+  const bridge = ['Em7', 'G', 'D2', 'A', 'Em7', 'G', 'D', 'A', 'Em7', 'G', 'D'];
+  assert.equal(inferKeyFromChords([...verse, ...chorus, ...verse, ...chorus, ...bridge, ...bridge, ...chorus, ...bridge]), 'A');
+});
+
+test('still infers keys whose chord set overlaps a neighbor key', () => {
+  assert.equal(inferKeyFromChords(['D', 'G', 'A', 'Bm', 'G', 'D', 'A', 'D']), 'D');
+  assert.equal(inferKeyFromChords(['C', 'G', 'Am', 'F', 'C', 'G', 'F', 'C']), 'C');
+  assert.equal(inferKeyFromChords(['G', 'C', 'D', 'Em', 'C', 'G', 'D', 'G']), 'G');
+  assert.equal(inferKeyFromChords(['E', 'B', 'C#m', 'A', 'E', 'B', 'A', 'E']), 'E');
+});
