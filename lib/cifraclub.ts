@@ -95,6 +95,8 @@ export interface CifraPage {
   capo?: string;
   rawText: string;
   sourceUrl: string;
+  /** `key` foi deduzido pelos acordes, não lido da página. */
+  keyInferred?: boolean;
 }
 
 function looksLikeSongPage(html: string): boolean {
@@ -322,6 +324,7 @@ function buildCifraPage(
     artist: artist || 'Artista desconhecido',
     // Sem "Tom:" na página, deduz pelos acordes — melhor que descartar a cifra.
     key: keyMatch?.[1] ?? inferKeyFromChords(chordsIn(best.text)),
+    keyInferred: !keyMatch,
     capo: capoMatch?.[1],
     rawText: best.text,
     sourceUrl: url,

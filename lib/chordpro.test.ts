@@ -269,3 +269,15 @@ test('removeTablature leaves chord/lyric-only text untouched', () => {
   const out = removeTablature(sample);
   assert.equal(out.trim(), sample.trim());
 });
+
+test('buildChordPro notes an inferred key in a <> comment right after the source link', () => {
+  const out = buildChordPro(
+    { title: 'T', artist: 'A', key: 'D', sourceUrl: 'https://www.cifraclub.com.br/a/t/', keyInferred: true },
+    'D  A\nla la\n'
+  );
+  const lines = out.split('\n');
+  const i = lines.indexOf('{comment: Fonte - https://www.cifraclub.com.br/a/t/}');
+  assert.ok(i >= 0);
+  assert.equal(lines[i + 1], '{comment: <Tom D deduzido pelos acordes - o Cifra Club não informava o tom>}');
+  assert.ok(!buildChordPro({ title: 'T', artist: 'A', key: 'D' }, 'D\n').includes('deduzido'));
+});

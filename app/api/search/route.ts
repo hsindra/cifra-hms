@@ -59,6 +59,7 @@ function toSongResult(c: CifraPage, settings: ImportSettings): SongLookupRespons
       originalMinorKey,
       capo: c.capo,
       sourceUrl: c.sourceUrl,
+      keyInferred: c.keyInferred,
     },
     rawText
   );

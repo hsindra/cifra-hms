@@ -138,6 +138,8 @@ export interface SongMeta {
   originalMinorKey?: string;
   capo?: string;
   sourceUrl?: string;
+  /** `key` foi deduzido pelos acordes (a página não informava o tom). */
+  keyInferred?: boolean;
 }
 
 export function buildChordPro(meta: SongMeta, rawCifraText: string): string {
@@ -149,6 +151,9 @@ export function buildChordPro(meta: SongMeta, rawCifraText: string): string {
   if (meta.originalMinorKey) header.push(`{originalkey: ${meta.originalMinorKey}}`);
   if (meta.capo) header.push(`{capo: ${meta.capo}}`);
   if (meta.sourceUrl) header.push(`{comment: Fonte - ${meta.sourceUrl}}`);
+  if (meta.keyInferred) {
+    header.push(`{comment: <Tom ${meta.key} deduzido pelos acordes - o Cifra Club não informava o tom>}`);
+  }
   return `${header.join('\n')}\n\n${body}`;
 }
 
