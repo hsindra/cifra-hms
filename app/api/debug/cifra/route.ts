@@ -3,9 +3,11 @@ import { debugCifra, normalizeCifraUrl } from '@/lib/cifraclub';
 
 // Diagnóstico (protegido pelo login do middleware): mostra o que o acesso
 // direto e a raspagem do Serper devolvem para uma página do Cifra Club.
-// /api/debug/cifra-br roda a mesma coisa em São Paulo (gru1).
 export async function GET(req: NextRequest) {
   const url = normalizeCifraUrl(req.nextUrl.searchParams.get('url') ?? '');
   if (!url) return NextResponse.json({ error: 'Passe ?url=<página do Cifra Club>' }, { status: 400 });
   return NextResponse.json(await debugCifra(url));
 }
+
+// Fetches via ScraperAPI can take a while (o padrão da Vercel é 10s).
+export const maxDuration = 60;

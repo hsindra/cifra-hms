@@ -171,3 +171,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: message }, { status: 502 });
   }
 }
+
+// Fetches via ScraperAPI can take a while (o padrão da Vercel é 10s).
+export const maxDuration = 60;

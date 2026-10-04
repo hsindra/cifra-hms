@@ -447,6 +447,30 @@ async function scrapeCifra(url: string): Promise<CifraPage> {
   }
 }
 
+/** Fetches a page's original HTML through ScraperAPI (SCRAPERAPI_KEY),
+ * whose residential/rotating IPs get past Cifra Club's block on datacenter
+ * IPs like Vercel's. Unlike the Serper scrape it returns the raw HTML, so the
+ * "Tom:" and the chord-line indentation survive. `premium` uses residential
+ * IPs only (more credits per page). */
+async function fetchViaScraperApi(
+  url: string,
+  { premium = false }: { premium?: boolean } = {}
+): Promise<FetchResult> {
+  const apiKey = process.env.SCRAPERAPI_KEY;
+  if (!apiKey) return { ok: false, status: 0, html: null };
+  const params = new URLSearchParams({ api_key: apiKey, url, country_code: 'br' });
+  if (premium) params.set('premium', 'true');
+  try {
+    const res = await fetch(`https://api.scraperapi.com/?${params}`, {
+      signal: AbortSignal.timeout(25_000),
+    });
+    if (!res.ok) return { ok: false, status: res.status, html: null };
+    return { ok: true, status: res.status, html: await res.text() };
+  } catch {
+    return { ok: false, status: 0, html: null };
+  }
+}
+
 export async function fetchCifra(
   url: string,
   { allowScrape = true }: { allowScrape?: boolean } = {}
@@ -454,6 +478,16 @@ export async function fetchCifra(
   const res = await fetchHtml(url);
   if (res.status === 403) {
     if (!allowScrape) throw new CifraAccessError(403);
+    // HTML original via ScraperAPI primeiro (tom e alinhamento corretos);
+    // se não der, a raspagem do Serper (tom deduzido pelos acordes).
+    const viaProxy = await fetchViaScraperApi(url);
+    if (viaProxy.html) {
+      try {
+        return parseCifraHtml(viaProxy.html, url);
+      } catch {
+        // página sem cifra reconhecível (ex: tela de bloqueio) — cai pro Serper
+      }
+    }
     return scrapeCifra(url);
   }
   if (!res.html) {
@@ -474,14 +508,26 @@ async function probeDirectVariants(url: string): Promise<Record<string, unknown>
     `https://www.cifraclub.com.br${path}imprimir.html`,
     `https://www.cifraclub.com.br${path}simplificada.html`,
   ];
+  const attempts: { label: string; run: () => Promise<FetchResult> }[] = variants.map((v) => ({
+    label: v,
+    run: () => fetchHtml(v),
+  }));
+  if (process.env.SCRAPERAPI_KEY) {
+    attempts.push(
+      { label: 'scraperapi', run: () => fetchViaScraperApi(url) },
+      { label: 'scraperapi premium', run: () => fetchViaScraperApi(url, { premium: true }) }
+    );
+  } else {
+    attempts.push({ label: 'scraperapi: SCRAPERAPI_KEY ausente', run: async () => ({ ok: false, status: 0, html: null }) });
+  }
   return Promise.all(
-    variants.map(async (v) => {
-      const res = await fetchHtml(v);
+    attempts.map(async ({ label: v, run }) => {
+      const res = await run();
       const info: Record<string, unknown> = { url: v, status: res.status };
       if (!res.html) return info;
       info.length = res.html.length;
       try {
-        const page = parseCifraHtml(res.html, v);
+        const page = parseCifraHtml(res.html, url);
         info.key = page.key;
         info.keyInferred = page.keyInferred;
         info.start = page.rawText.slice(0, 300);
