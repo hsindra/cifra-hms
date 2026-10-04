@@ -78,11 +78,21 @@ function scorePreAsCifra(text: string): number {
   return score;
 }
 
+/** "Tom: A" as it appears in the page text — in the scrape it may be "tom:",
+ * with the chord wrapped as a markdown link/bold or on the next line. */
+function findKey(pageText: string): RegExpMatchArray | null {
+  return (
+    pageText.match(/Tom\s*:?\s*([A-G](?:#|b)?m?)/) ??
+    pageText.match(/\b[Tt][Oo][Mm]\b[^A-Za-z0-9]{0,15}([A-G](?:#|b)?m?)(?![A-Za-z0-9#])/)
+  );
+}
+
 /** Every chord in the cifra's chord-only lines, in order. */
 function chordsIn(text: string): string[] {
   const chords: string[] = [];
   for (const line of text.split('\n')) {
-    const words = line.match(/\S+/g);
+    // "[Intro] A Em7 G D" também conta — ignora o rótulo da seção.
+    const words = line.replace(/^\s*\[[^\]]*\]/, '').match(/\S+/g);
     if (words && words.every((w) => CHORD_TOKEN.test(w))) chords.push(...words);
   }
   return chords;
@@ -315,9 +325,7 @@ function buildCifraPage(
   }
   // "Tom: A" no HTML; na raspagem pode vir "tom:", e o acorde como link ou
   // negrito em markdown ("tom: [A](...)", "**A**").
-  const keyMatch =
-    pageText.match(/Tom\s*:?\s*([A-G](?:#|b)?m?)/) ??
-    pageText.match(/\b[Tt]om\s*:\s*[[*_`\s]*([A-G](?:#|b)?m?)(?![a-z#])/);
+  const keyMatch = findKey(pageText);
   const capoMatch = pageText.match(/Capotraste\s*(?:na)?\s*(\d+)[ªº]?\s*casa/i);
   return {
     title: title || 'Título desconhecido',
@@ -431,4 +439,44 @@ export async function fetchCifra(
     throw new Error(`Não foi possível acessar ${url} (HTTP ${res.status || 'erro de rede'}).`);
   }
   return parseCifraHtml(res.html, url);
+}
+
+/** Diagnostic for /api/debug/cifra: what the direct fetch and the Serper
+ * scrape return for a page, and what we extract from it. */
+export async function debugCifra(url: string): Promise<Record<string, unknown>> {
+  const direct = await fetchHtml(url);
+  const out: Record<string, unknown> = { url, directStatus: direct.status };
+  const apiKey = process.env.SERPER_API_KEY;
+  if (!apiKey) return { ...out, scrape: 'SERPER_API_KEY ausente' };
+  const res = await fetch('https://scrape.serper.dev', {
+    method: 'POST',
+    headers: { 'X-API-KEY': apiKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url, includeMarkdown: true }),
+  });
+  out.scrapeStatus = res.status;
+  const raw = await res.text();
+  let data: SerperScrapeResponse = {};
+  try {
+    data = JSON.parse(raw);
+  } catch {
+    return { ...out, scrapeBody: raw.slice(0, 2000) };
+  }
+  const markdown = data.markdown ?? '';
+  const text = data.text ?? '';
+  const around = (src: string) =>
+    [...src.matchAll(/tom/gi)].slice(0, 5).map((m) => src.slice(Math.max(0, m.index! - 40), m.index! + 60));
+  out.metadata = data.metadata;
+  out.markdownLength = markdown.length;
+  out.textLength = text.length;
+  out.tomInMarkdown = around(markdown);
+  out.tomInText = around(text);
+  out.keyFound = findKey(text || markdown)?.[1] ?? null;
+  try {
+    const page = await scrapeCifra(url);
+    out.parsed = { ...page, rawText: page.rawText.slice(0, 1500), chords: chordsIn(page.rawText) };
+  } catch (err) {
+    out.parseError = String(err);
+  }
+  out.markdownStart = markdown.slice(0, 3000);
+  return out;
 }
