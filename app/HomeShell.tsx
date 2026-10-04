@@ -21,7 +21,7 @@ import type { ResolvedSetlist, SongLookupResponse } from '@/lib/types';
 import { addSectionProgressions, flowSections, parseChordProHeader } from '@/lib/chordpro';
 
 const FLOW_BUTTON_TITLE = 'Juntar linhas de cada seção (quebra pela largura da tela)';
-const TAG_CHORDS_BUTTON_TITLE = 'Colocar nas tags sem acordes a sequência de acordes da seção';
+const TAG_CHORDS_BUTTON_TITLE = 'Montar nas tags a sequência de acordes da seção';
 
 /** Atalhos de criar tag de seção no editor de código — o rótulo segue o
  * mesmo texto que ChordProView usa pra colorir a tag (refrão, ponte...). */
@@ -521,8 +521,8 @@ export default function Home({
     if (next !== chordpro) updateChordpro(next);
   }
 
-  /** Botão "acordes nas tags": cada {tag} sozinha na linha ganha a sequência
-   * de acordes da sua seção; tags que já têm acordes ficam como estão.
+  /** Botão "acordes nas tags": cada {tag} de seção ganha (ou tem refeita) a sequência
+   * de acordes da sua seção (ver addSectionProgressions).
    * Também desfazível. */
   function handleAddSectionProgressions() {
     if (!chordpro) return;

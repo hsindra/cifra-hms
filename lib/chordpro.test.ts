@@ -339,17 +339,19 @@ test('"Intro: D D Bm Bm" becomes an Intro tag with its chords', () => {
   assert.ok(!chordsOverLyricsToChordPro('Refrão: Senhor\n').includes('{'));
 });
 
-test('addSectionProgressions fills bare tags only', async () => {
+test('addSectionProgressions (re)writes tag progressions from their sections', async () => {
   const { addSectionProgressions } = await import('./chordpro.ts');
   const src = [
     '{title: T}',
     '{Verso}',
-    '[1]A tua [6m]graça [%] nos [4]faz [1]dançar [6m]com',
-    '{Refrão}[ 4 | 5 ]',
+    '[1]A tua [6m]graça [%] nos [4.]faz [4]faz [1]dançar [6m]com',
+    '{Refrão}[ 2m | 5 ]',
     '[4]la [5]la',
+    '{Intro} [1] [%] [4]',
     '{Ponte}',
     'só letra',
-    '{Final}',
+    '{Final}[1]fim com letra',
+    '{Fim}',
     '[1]fim',
   ].join('\n');
   assert.equal(
@@ -357,12 +359,14 @@ test('addSectionProgressions fills bare tags only', async () => {
     [
       '{title: T}',
       '{Verso}[ 1 | 6m | 4 ]',
-      '[1]A tua [6m]graça [%] nos [4]faz [1]dançar [6m]com',
+      '[1]A tua [6m]graça [%] nos [4.]faz [4]faz [1]dançar [6m]com',
       '{Refrão}[ 4 | 5 ]',
       '[4]la [5]la',
+      '{Intro} [1] [%] [4]',
       '{Ponte}',
       'só letra',
-      '{Final} [1]',
+      '{Final}[1]fim com letra',
+      '{Fim} [1]',
       '[1]fim',
     ].join('\n')
   );
