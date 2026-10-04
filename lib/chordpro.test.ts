@@ -332,3 +332,38 @@ test('flowSections keeps header directives on their own lines', async () => {
     '{title: T}\n{key: A}\n\n{Verso}\n[1]la lá\n'
   );
 });
+
+test('"Intro: D D Bm Bm" becomes an Intro tag with its chords', () => {
+  assert.equal(chordsOverLyricsToChordPro('Intro: D D Bm Bm\n').trim(), '{Intro}[ D | D | Bm | Bm ]');
+  assert.ok(!chordsOverLyricsToChordPro('Tom: D\n').includes('{'));
+  assert.ok(!chordsOverLyricsToChordPro('Refrão: Senhor\n').includes('{'));
+});
+
+test('addSectionProgressions fills bare tags only', async () => {
+  const { addSectionProgressions } = await import('./chordpro.ts');
+  const src = [
+    '{title: T}',
+    '{Verso}',
+    '[1]A tua [6m]graça [%] nos [4]faz [1]dançar [6m]com',
+    '{Refrão}[ 4 | 5 ]',
+    '[4]la [5]la',
+    '{Ponte}',
+    'só letra',
+    '{Final}',
+    '[1]fim',
+  ].join('\n');
+  assert.equal(
+    addSectionProgressions(src),
+    [
+      '{title: T}',
+      '{Verso}[ 1 | 6m | 4 ]',
+      '[1]A tua [6m]graça [%] nos [4]faz [1]dançar [6m]com',
+      '{Refrão}[ 4 | 5 ]',
+      '[4]la [5]la',
+      '{Ponte}',
+      'só letra',
+      '{Final} [1]',
+      '[1]fim',
+    ].join('\n')
+  );
+});

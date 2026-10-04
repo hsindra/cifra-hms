@@ -18,9 +18,27 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import type { ResolvedSetlist, SongLookupResponse } from '@/lib/types';
-import { flowSections, parseChordProHeader } from '@/lib/chordpro';
+import { addSectionProgressions, flowSections, parseChordProHeader } from '@/lib/chordpro';
 
 const FLOW_BUTTON_TITLE = 'Juntar linhas de cada seção (quebra pela largura da tela)';
+const TAG_CHORDS_BUTTON_TITLE = 'Colocar nas tags sem acordes a sequência de acordes da seção';
+
+// Ícone de etiqueta (tag).
+const TAG_CHORDS_ICON = (
+  <svg
+    width="16"
+    height="16"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+    <circle cx="7" cy="7" r="1.5" />
+  </svg>
+);
 
 // Ícone "quebra automática de texto": linhas com uma seta de retorno.
 const FLOW_ICON = (
@@ -491,6 +509,15 @@ export default function Home({
   function handleFlowSections() {
     if (!chordpro) return;
     const next = flowSections(chordpro);
+    if (next !== chordpro) updateChordpro(next);
+  }
+
+  /** Botão "acordes nas tags": cada {tag} sozinha na linha ganha a sequência
+   * de acordes da sua seção; tags que já têm acordes ficam como estão.
+   * Também desfazível. */
+  function handleAddSectionProgressions() {
+    if (!chordpro) return;
+    const next = addSectionProgressions(chordpro);
     if (next !== chordpro) updateChordpro(next);
   }
 
@@ -1661,6 +1688,15 @@ export default function Home({
                 <button
                   type="button"
                   className="icon-button"
+                  title={TAG_CHORDS_BUTTON_TITLE}
+                  aria-label={TAG_CHORDS_BUTTON_TITLE}
+                  onClick={handleAddSectionProgressions}
+                >
+                  {TAG_CHORDS_ICON}
+                </button>
+                <button
+                  type="button"
+                  className="icon-button"
                   title="Desfazer última edição"
                   aria-label="Desfazer última edição"
                   disabled={undoSnapshot === null}
@@ -2445,6 +2481,15 @@ export default function Home({
                 onClick={handleFlowSections}
               >
                 {FLOW_ICON}
+              </button>
+              <button
+                type="button"
+                className="icon-button"
+                title={TAG_CHORDS_BUTTON_TITLE}
+                aria-label={TAG_CHORDS_BUTTON_TITLE}
+                onClick={handleAddSectionProgressions}
+              >
+                {TAG_CHORDS_ICON}
               </button>
               <button
                 type="button"

@@ -88,8 +88,12 @@ function mergeChordAndLyric(chordLine: string, lyricLine: string): string {
  * same line (how Cifra Club writes intros/instrumental parts). */
 const LABELED_CHORD_LINE = /^\s*\[([^\]]+)\]\s+(\S.*)$/;
 
+/** "Intro: D D Bm Bm" — the same, written with a colon instead of brackets
+ * (metadata like "Tom: D" is filtered out before this is checked). */
+const COLON_CHORD_LINE = /^\s*([A-Za-zÀ-ÿ][^:[\]{}]{0,30}?)\s*:\s*(\S.*)$/;
+
 function labeledChordLine(line: string): { label: string; chords: string[] } | null {
-  const m = line.match(LABELED_CHORD_LINE);
+  const m = line.match(LABELED_CHORD_LINE) ?? line.match(COLON_CHORD_LINE);
   if (!m || CHORD_TOKEN.test(m[1]) || !isChordLine(m[2])) return null;
   return { label: m[1].trim(), chords: m[2].match(/\S+/g) ?? [] };
 }
@@ -118,6 +122,34 @@ function tagWithProgression(label: string, chords: string[]): string {
   if (chords.length === 0) return `{${label}}`;
   if (chords.length === 1) return `{${label}} [${chords[0]}]`;
   return `{${label}}[ ${chords.join(' | ')} ]`;
+}
+
+/** A `{tag}` alone on its line — a section header with no progression yet. */
+const BARE_TAG_LINE = /^\s*\{([^:{}]+)\}\s*$/;
+
+/** For the "acordes nas tags" button: gives every bare `{tag}` line the
+ * progression of its section — the chords in brackets up to the next tag,
+ * one cycle (see sectionProgression) — as "{Tag}[ 1 | 6m | 4 ]". Tags that
+ * already carry chords on their line are left alone, as are sections with
+ * no chords. Works on graus or concrete chords alike. */
+export function addSectionProgressions(chordpro: string): string {
+  const lines = chordpro.split('\n');
+  const isTagLine = (l: string) => /^\s*\{[^:{}]+\}/.test(l);
+  return lines
+    .map((line, i) => {
+      const tag = line.match(BARE_TAG_LINE);
+      if (!tag) return line;
+      const chords: string[] = [];
+      for (let j = i + 1; j < lines.length && !isTagLine(lines[j]); j++) {
+        if (DIRECTIVE_LINE.test(lines[j])) continue;
+        for (const m of lines[j].matchAll(/\[([^\]|]+)\]/g)) {
+          const chord = m[1].trim();
+          if (chord && chord !== '%') chords.push(chord);
+        }
+      }
+      return tagWithProgression(tag[1].trim(), sectionProgression(chords));
+    })
+    .join('\n');
 }
 
 /**
