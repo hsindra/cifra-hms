@@ -115,19 +115,20 @@ export async function POST(req: NextRequest) {
     const query = [artist, song].filter(Boolean).join(' ');
     const savedMatches = saved
       .map((s) => ({ s, score: songMatchScore(query, s.title, s.artist) }))
-      .filter((m) => m.score >= MATCH_THRESHOLD)
-      .sort((a, b) => b.score - a.score)
-      .map((m) => m.s);
-    const savedUrls = new Set(savedMatches.map((s) => s.sourceUrl).filter(Boolean));
+      .filter((m) => m.score >= MATCH_THRESHOLD);
+    const savedUrls = new Set(savedMatches.map((m) => m.s.sourceUrl).filter(Boolean));
 
-    const results: SongLookupResponse[] = savedMatches.map(savedToResult);
+    // Salvas e da internet vão juntas, ordenadas por quantas palavras da busca
+    // aparecem no título/artista — empate fica com a salva (ver sort abaixo).
+    const scored: { result: SongLookupResponse; score: number; saved: boolean }[] =
+      savedMatches.map((m) => ({ result: savedToResult(m.s), score: m.score, saved: true }));
     let webSearchError: string | undefined;
 
     if (!webSearch.ok) {
       // Sem músicas salvas pra mostrar, o erro da busca na internet é o único
       // resultado possível — propaga. Com salvas, elas vão como resposta, mas
       // o erro segue junto pra UI avisar que o Cifra Club não foi consultado.
-      if (results.length === 0) throw webSearch.error;
+      if (scored.length === 0) throw webSearch.error;
       const e = webSearch.error;
       webSearchError = e instanceof Error ? e.message : 'Erro ao buscar no Cifra Club.';
     } else {
@@ -136,7 +137,11 @@ export async function POST(req: NextRequest) {
       for (const c of webSearch.candidates) {
         if (c.sourceUrl && savedUrls.has(c.sourceUrl)) continue; // já apareceu como salva
         try {
-          results.push(toSongResult(c, settings));
+          scored.push({
+            result: toSongResult(c, settings),
+            score: songMatchScore(query, c.title, c.artist),
+            saved: false,
+          });
           added++;
         } catch (err) {
           if (err instanceof MissingKeyError) {
@@ -152,6 +157,10 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // sort é estável: dentro do mesmo score/origem fica a ordem original.
+    const results = scored
+      .sort((a, b) => b.score - a.score || Number(b.saved) - Number(a.saved))
+      .map((x) => x.result);
     const response: SongSearchResponse = { results, webSearchError };
     return NextResponse.json(response);
   } catch (err) {

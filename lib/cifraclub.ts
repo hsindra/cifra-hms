@@ -219,6 +219,30 @@ function slugSimilarity(a: string, b: string): number {
 }
 
 const MAX_CANDIDATES_TO_CHECK = 8;
+/** Once the first page is in, how long to keep waiting for the rest — a
+ * page through the proxy can take many seconds, and one slow candidate
+ * shouldn't hold back the whole list. */
+const RESULT_GRACE_MS = 3_000;
+
+/** Like Promise.all, but once the first non-null value arrives it waits at
+ * most `graceMs` for the others; any still pending count as null. */
+async function settleWithGrace<T>(promises: Promise<T | null>[], graceMs: number): Promise<(T | null)[]> {
+  const values: (T | null)[] = promises.map(() => null);
+  let release: () => void = () => {};
+  const graceOver = new Promise<void>((resolve) => (release = resolve));
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const all = Promise.all(
+    promises.map((p, i) =>
+      p.then((v) => {
+        values[i] = v;
+        if (v !== null && !timer) timer = setTimeout(release, graceMs);
+      })
+    )
+  );
+  await Promise.race([all, graceOver]);
+  if (timer) clearTimeout(timer);
+  return [...values];
+}
 const MAX_RESULTS = 6;
 /** The scrape fallback costs Serper credits per page, so on a 403 only the
  * best-ranked candidates go through it. */
@@ -270,9 +294,10 @@ export async function searchCifra(artist: string, song: string): Promise<CifraPa
       return { url, score };
     })
     .sort((a, b) => b.score - a.score)
-    .slice(0, MAX_CANDIDATES_TO_CHECK);
+    // Bloqueado: só os candidatos que podem ir pelo proxy valem a chamada.
+    .slice(0, directLikelyBlocked() ? MAX_SCRAPED_CANDIDATES : MAX_CANDIDATES_TO_CHECK);
 
-  const settled = await Promise.all(
+  const settled = await settleWithGrace(
     ranked.map(async ({ url }, i) => {
       try {
         return await fetchCifra(url, { allowScrape: i < MAX_SCRAPED_CANDIDATES });
@@ -283,7 +308,8 @@ export async function searchCifra(artist: string, song: string): Promise<CifraPa
         }
         return null;
       }
-    })
+    }),
+    RESULT_GRACE_MS
   );
 
   const results = settled.filter((r): r is CifraPage => r !== null);
@@ -470,12 +496,26 @@ async function fetchViaScraperApi(
   }
 }
 
+/** Cifra Club currently answers 403 to every direct request from our
+ * servers; after one 403, skip the direct attempt for a while (per warm
+ * serverless instance) and go straight to the proxy — saves a round trip
+ * per page. */
+const DIRECT_BLOCK_MEMORY_MS = 15 * 60_000;
+let directBlockedUntil = 0;
+
+function directLikelyBlocked(): boolean {
+  return Date.now() < directBlockedUntil;
+}
+
 export async function fetchCifra(
   url: string,
   { allowScrape = true }: { allowScrape?: boolean } = {}
 ): Promise<CifraPage> {
-  const res = await fetchHtml(url);
+  const res: FetchResult = directLikelyBlocked()
+    ? { ok: false, status: 403, html: null }
+    : await fetchHtml(url);
   if (res.status === 403) {
+    directBlockedUntil = Date.now() + DIRECT_BLOCK_MEMORY_MS;
     if (!allowScrape) throw new CifraAccessError(403);
     // HTML original via ScraperAPI primeiro (tom e alinhamento corretos);
     // se não der, a raspagem do Serper (tom deduzido pelos acordes).
