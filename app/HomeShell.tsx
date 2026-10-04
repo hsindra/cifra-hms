@@ -278,7 +278,8 @@ export default function Home({
         setError(`Mostrando só músicas salvas. ${data.webSearchError}`);
         return;
       }
-      if (found.length === 1) openResult(found[0]);
+      // Busca por nome sempre mostra a lista pra escolher — só URL colada abre direto.
+      if ('url' in body && found.length === 1) openResult(found[0]);
     } catch {
       setError('Falha de rede ao buscar a música.');
     } finally {
@@ -1860,7 +1861,7 @@ export default function Home({
 
       {mode === 'search' && error && <p className="error">{error}</p>}
 
-      {mode === 'search' && results && (results.length > 1 || error) && !chordpro && (
+      {mode === 'search' && results && results.length > 0 && !chordpro && (
         <ul className="results">
           {results.map((r) => (
             <li key={r.sourceUrl}>
