@@ -358,7 +358,7 @@ test('addSectionProgressions (re)writes tag progressions from their sections', a
     addSectionProgressions(src),
     [
       '{title: T}',
-      '{Verso}[ 1 | 6m | 4 ]',
+      '{Verso}[ 1 | 6m | 4 | 1 | 6m ]',
       '[1]A tua [6m]graça [%] nos [4.]faz [4]faz [1]dançar [6m]com',
       '{Refrão}[ 4 | 5 ]',
       '[4]la [5]la',
@@ -370,4 +370,26 @@ test('addSectionProgressions (re)writes tag progressions from their sections', a
       '[1]fim',
     ].join('\n')
   );
+});
+
+test('addSectionProgressions uses the first stanza, up to a blank line, without cycle cutting', async () => {
+  const { addSectionProgressions } = await import('./chordpro.ts');
+  const src = [
+    '{Verso}[ 1 | 6m | 4 ]',
+    'A [1]tua graça nos faz dançar',
+    'Co[6m]m toda força celebrar',
+    'Da[4]nçaremos gratos por [1]teu amor',
+    '',
+    'A [1]tua gloria nos faz cantar',
+    'Po[6m]r toda terra te exaltar',
+    'Ca[4]ntaremos glorias a [5]ti, Senhor',
+    '',
+    '{Pré-refrão}',
+    '',
+    'É o tr[2m]ansbordar',
+    'Por nos [1/3]perdoar',
+  ].join('\n');
+  const out = addSectionProgressions(src).split('\n');
+  assert.equal(out[0], '{Verso}[ 1 | 6m | 4 | 1 ]');
+  assert.equal(out[9], '{Pré-refrão}[ 2m | 1/3 ]');
 });

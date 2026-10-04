@@ -130,9 +130,10 @@ function tagWithProgression(label: string, chords: string[]): string {
 const TAG_HEADER_LINE = /^\s*\{([^:{}]+)\}((?:\s*\[[^\]]*\])*)\s*$/;
 
 /** For the "acordes nas tags" button: (re)writes every section header's
- * progression from the chords in its section — the bracketed chords up to
- * the next tag, one cycle (see sectionProgression) — as "{Tag}[ 1 | 6m | 4 ]",
- * replacing any chords already after the tag. "%" and chords with a "." are
+ * progression from its section's first stanza — the bracketed chords from
+ * the tag down to the first blank line (or the next tag), repeats in a row
+ * collapsed — as "{Tag}[ 1 | 6m | 4 | 1 ]", replacing any chords already
+ * after the tag. "%" and chords with a "." are
  * skipped. A tag followed by lyrics on its line, or whose section has no
  * chords, is left as is. Works on graus or concrete chords alike. */
 export function addSectionProgressions(chordpro: string): string {
@@ -145,13 +146,20 @@ export function addSectionProgressions(chordpro: string): string {
       const chords: string[] = [];
       for (let j = i + 1; j < lines.length && !isTagLine(lines[j]); j++) {
         if (DIRECTIVE_LINE.test(lines[j])) continue;
+        // Linha em branco fecha a estrofe — só as em branco logo após a tag
+        // (antes de qualquer acorde) são puladas.
+        if (lines[j].trim() === '') {
+          if (chords.length) break;
+          continue;
+        }
         for (const m of lines[j].matchAll(/\[([^\]|]+)\]/g)) {
           const chord = m[1].trim();
           if (chord && chord !== '%' && !chord.includes('.')) chords.push(chord);
         }
       }
       if (chords.length === 0) return line;
-      return tagWithProgression(tag[1].trim(), sectionProgression(chords));
+      const progression = chords.filter((c, k) => c !== chords[k - 1]);
+      return tagWithProgression(tag[1].trim(), progression);
     })
     .join('\n');
 }
