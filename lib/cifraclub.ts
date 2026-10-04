@@ -300,7 +300,11 @@ function buildCifraPage(
   if (!best || best.score === 0) {
     throw new Error('Não encontrei a cifra (bloco de acordes) nessa página.');
   }
-  const keyMatch = pageText.match(/Tom\s*:?\s*([A-G](?:#|b)?m?)/);
+  // "Tom: A" no HTML; na raspagem pode vir "tom:", e o acorde como link ou
+  // negrito em markdown ("tom: [A](...)", "**A**").
+  const keyMatch =
+    pageText.match(/Tom\s*:?\s*([A-G](?:#|b)?m?)/) ??
+    pageText.match(/\b[Tt]om\s*:\s*[[*_`\s]*([A-G](?:#|b)?m?)(?![a-z#])/);
   const capoMatch = pageText.match(/Capotraste\s*(?:na)?\s*(\d+)[ªº]?\s*casa/i);
   return {
     title: title || 'Título desconhecido',

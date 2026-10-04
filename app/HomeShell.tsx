@@ -737,7 +737,7 @@ export default function Home({
     const query = song.trim();
     if (query.length < 2 || !savedSongs || results) return [];
     return savedSongs
-      .map((s) => ({ s, score: songMatchScore(query, s.title, s.artist) }))
+      .map((s) => ({ s, score: songMatchScore(query, s.title, s.artist, { prefixLast: true }) }))
       .filter((m) => m.score >= MATCH_THRESHOLD)
       .sort((a, b) => b.score - a.score)
       .slice(0, 5)
@@ -757,7 +757,7 @@ export default function Home({
     const query = setlistSongQuery.trim();
     if (query.length < 2 || !savedSongs || setlistSearchResults) return [];
     return savedSongs
-      .map((s) => ({ s, score: songMatchScore(query, s.title, s.artist) }))
+      .map((s) => ({ s, score: songMatchScore(query, s.title, s.artist, { prefixLast: true }) }))
       .filter((m) => m.score >= MATCH_THRESHOLD)
       .sort((a, b) => b.score - a.score)
       .slice(0, 5)

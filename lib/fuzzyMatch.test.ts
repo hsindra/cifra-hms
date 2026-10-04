@@ -6,8 +6,8 @@ test('scores a full title+artist match at 1', () => {
   assert.equal(songMatchScore('só tu és santo morada', 'Só Tu És Santo', 'MORADA'), 1);
 });
 
-test('matches on partial/prefix typing (typeahead case)', () => {
-  const score = songMatchScore('so tu san', 'Só Tu És Santo', 'MORADA');
+test('typeahead: last word may be a prefix while typing', () => {
+  const score = songMatchScore('so tu san', 'Só Tu És Santo', 'MORADA', { prefixLast: true });
   assert.ok(score >= MATCH_THRESHOLD, `expected >= ${MATCH_THRESHOLD}, got ${score}`);
 });
 
@@ -34,4 +34,23 @@ test('short words and stopwords do not make unrelated songs match', () => {
 
 test('matches the right song despite stopwords in the query', () => {
   assert.equal(songMatchScore('Geração que danca', 'Geração Que Dança', 'Ministério Zoe'), 1);
+});
+
+test('matches whole words only, not pieces of words', () => {
+  for (const [title, artist] of [
+    ['Pai Nosso', 'Pedras Vivas'],
+    ['Ao que está sentado', ''],
+    ['Pela Fé', 'notion'],
+    ['perto quero estar', 'notion'],
+    ['Tudo q eu tenho aos seus pés', 'notion'],
+    ['Pelo sangue do filho', 'notion'],
+  ]) {
+    const score = songMatchScore('Estamos de pé', title, artist);
+    assert.ok(score < MATCH_THRESHOLD, `${title}: expected < ${MATCH_THRESHOLD}, got ${score}`);
+  }
+  assert.equal(songMatchScore('Estamos de pé', 'Estamos de Pé', 'Marcus Salles'), 1);
+});
+
+test('without prefixLast, a partial last word does not match', () => {
+  assert.ok(songMatchScore('so tu san', 'Só Tu És Santo', 'MORADA') < 1);
 });

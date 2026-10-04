@@ -130,14 +130,24 @@ export async function POST(req: NextRequest) {
       const e = webSearch.error;
       webSearchError = e instanceof Error ? e.message : 'Erro ao buscar no Cifra Club.';
     } else {
+      let added = 0;
+      let missingKey = 0;
       for (const c of webSearch.candidates) {
         if (c.sourceUrl && savedUrls.has(c.sourceUrl)) continue; // já apareceu como salva
         try {
           results.push(toSongResult(c, settings));
+          added++;
         } catch (err) {
-          if (err instanceof MissingKeyError) continue; // sem tom, não dá pra salvar em graus
+          if (err instanceof MissingKeyError) {
+            missingKey++; // sem tom, não dá pra salvar em graus
+            continue;
+          }
           throw err;
         }
+      }
+      // Não deixa o descarte passar em silêncio quando nada da internet sobrou.
+      if (added === 0 && missingKey > 0) {
+        webSearchError = `${missingKey} cifra(s) achada(s) no Cifra Club foram ignoradas por não ter o tom identificado.`;
       }
     }
 
