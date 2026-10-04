@@ -9,3 +9,4 @@ out
 # repo is public. Review locally, then import into the app's own DB.
 /notion-import/
 scripts/__pycache__/
+*.tsbuildinfo
