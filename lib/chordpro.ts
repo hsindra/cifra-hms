@@ -1,7 +1,13 @@
 import { chordToNashville, nashvilleToChord } from './transpose.ts';
 
-const CHORD_TOKEN = new RegExp(
-  '^[A-G](#|b)?(m|maj|min|dim|aug|sus2|sus4|sus|add\\d{1,2})?(\\d{1,2})?(\\([^)]*\\))?(/[A-G](#|b)?m?)?$'
+/** One chord as Cifra Club writes it: root + accidental, an optional
+ * quality, then any run of extensions — including the Brazilian "7M"
+ * (major 7th), "M7", "7+", "°", "4", "9", "add9", "(9)", "(b5)" — and an
+ * optional slash bass. E.g. "B7M", "C#m7(b5)", "A7M/C#", "E°", "G7+". */
+export const CHORD_TOKEN = new RegExp(
+  '^[A-G](#|b)?(maj|min|dim|aug|m)?' +
+    '(\\d{1,2}M?|M\\d{0,2}|maj\\d{0,2}|sus\\d?|add\\d{1,2}|dim|aug|[+°º-]|\\([^)]*\\))*' +
+    '(/[A-G](#|b)?m?)?$'
 );
 
 const METADATA_LINE = /^\s*(Tom\s*:|Capotraste\b|Afina[cç][aã]o\s*:)/i;

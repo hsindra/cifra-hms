@@ -1,6 +1,7 @@
 import * as cheerio from 'cheerio';
 import { slugify } from './slugify';
 import { inferKeyFromChords } from './transpose';
+import { CHORD_TOKEN } from './chordpro';
 
 type Node = {
   type: string;
@@ -63,9 +64,7 @@ function extractPreText(el: unknown): string {
   return out;
 }
 
-const CHORD_TOKEN = new RegExp(
-  '^[A-G](#|b)?(m|maj|min|dim|aug|sus2|sus4|sus|add\\d{1,2})?(\\d{1,2})?(\\([^)]*\\))?(/[A-G](#|b)?m?)?$'
-);
+
 
 function scorePreAsCifra(text: string): number {
   const lines = text.split('\n').slice(0, 40);

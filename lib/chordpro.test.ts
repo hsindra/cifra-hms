@@ -399,3 +399,19 @@ test('addSectionProgressions closes the cycle at 4 chords when the stanza is lon
   const out = addSectionProgressions('{Refrão}\n[1]a [5]b [4.]c [6m]d\n[4]e [1]f [5]g\n');
   assert.equal(out.split('\n')[0], '{Refrão}[ 1 | 5 | 6m | 4 ]');
 });
+
+test('recognizes Brazilian/extended chord notation as chords', async () => {
+  const { CHORD_TOKEN } = await import('./chordpro.ts');
+  for (const c of ['B7M', 'A7M/C#', 'C7M(9)', 'F#m7(b5)', 'E°', 'G7+', 'D4', 'Dsus4', 'Cadd9', 'Am7(11)', 'Db/F', 'D#m', 'C#', 'E6', 'A4', 'D2', 'Bm7/A', 'Gmaj7', 'C9', 'Bb7(13)']) {
+    assert.ok(CHORD_TOKEN.test(c), c);
+  }
+  for (const w of ['Esse', 'Amor', 'Deus', 'Ele', 'Cristo', 'Bom', 'Fé', 'Em7M7x']) {
+    assert.ok(!CHORD_TOKEN.test(w), w);
+  }
+});
+
+test('"[Intro] F# B7M" and chord lines with 7M are converted', () => {
+  const out = chordsOverLyricsToChordPro('[Intro] F#  B7M  F#  B7M\n\nF#           B7M\nEsse é o meu respirar\n');
+  assert.ok(out.startsWith('{Intro}[ F# | B7M | F# | B7M ]'), out);
+  assert.ok(out.includes('[F#]Esse é o meu [B7M]respirar'), out);
+});
