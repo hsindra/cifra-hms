@@ -513,10 +513,7 @@ async function probeDirectVariants(url: string): Promise<Record<string, unknown>
     run: () => fetchHtml(v),
   }));
   if (process.env.SCRAPERAPI_KEY) {
-    attempts.push(
-      { label: 'scraperapi', run: () => fetchViaScraperApi(url) },
-      { label: 'scraperapi premium', run: () => fetchViaScraperApi(url, { premium: true }) }
-    );
+    attempts.push({ label: 'scraperapi', run: () => fetchViaScraperApi(url) });
   } else {
     attempts.push({ label: 'scraperapi: SCRAPERAPI_KEY ausente', run: async () => ({ ok: false, status: 0, html: null }) });
   }
