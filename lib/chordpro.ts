@@ -84,6 +84,42 @@ function mergeChordAndLyric(chordLine: string, lyricLine: string): string {
   return result;
 }
 
+/** "[Intro] A  Em7  G  D" — a section label followed by its chords on the
+ * same line (how Cifra Club writes intros/instrumental parts). */
+const LABELED_CHORD_LINE = /^\s*\[([^\]]+)\]\s+(\S.*)$/;
+
+function labeledChordLine(line: string): { label: string; chords: string[] } | null {
+  const m = line.match(LABELED_CHORD_LINE);
+  if (!m || CHORD_TOKEN.test(m[1]) || !isChordLine(m[2])) return null;
+  return { label: m[1].trim(), chords: m[2].match(/\S+/g) ?? [] };
+}
+
+function isSectionStart(line: string): boolean {
+  const label = line.trim().match(SECTION_LABEL_LINE);
+  return (!!label && !CHORD_TOKEN.test(label[1])) || labeledChordLine(line) !== null;
+}
+
+const MAX_PROGRESSION_CHORDS = 8;
+
+/** One cycle of a section's chord progression for its tag: the chords in
+ * order (repeats in a row collapsed) up to where the first chord comes back,
+ * e.g. A F#m D A F#m D2 A → A | F#m | D. */
+function sectionProgression(chords: string[]): string[] {
+  const seq = chords.filter((c, i) => c !== chords[i - 1]);
+  const cycle = seq.indexOf(seq[0], 1);
+  return seq.slice(0, cycle > 0 ? cycle : seq.length).slice(0, MAX_PROGRESSION_CHORDS);
+}
+
+/** "{Primeira Parte}[ A | F#m | D ]" — the same tag-with-progression shape
+ * used in hand-written songs, which ChordProView renders as one badge
+ * ("Primeira Parte - 1 | 6m | 4"). A single chord can't use the "|" form
+ * (see TAG_CHORD_BRACKET), so it stays a separate chord chunk. */
+function tagWithProgression(label: string, chords: string[]): string {
+  if (chords.length === 0) return `{${label}}`;
+  if (chords.length === 1) return `{${label}} [${chords[0]}]`;
+  return `{${label}}[ ${chords.join(' | ')} ]`;
+}
+
 /**
  * Converts "chords-above-lyrics" plain text (the format Cifra Club renders
  * inside its <pre> block) into a ChordPro-annotated body.
@@ -98,9 +134,19 @@ export function chordsOverLyricsToChordPro(rawText: string): string {
       i += 1;
       continue;
     }
+    const labeled = labeledChordLine(line);
+    if (labeled) {
+      out.push(tagWithProgression(labeled.label, labeled.chords));
+      i += 1;
+      continue;
+    }
     const sectionMatch = line.trim().match(SECTION_LABEL_LINE);
     if (sectionMatch && !CHORD_TOKEN.test(sectionMatch[1])) {
-      out.push(`{${sectionMatch[1]}}`);
+      const sectionChords: string[] = [];
+      for (let j = i + 1; j < lines.length && !isSectionStart(lines[j]); j++) {
+        if (isChordLine(lines[j])) sectionChords.push(...(lines[j].match(/\S+/g) ?? []));
+      }
+      out.push(tagWithProgression(sectionMatch[1], sectionProgression(sectionChords)));
       i += 1;
       continue;
     }
@@ -359,12 +405,28 @@ const CHORD_BRACKET = /\[([^\]]+)\]/g;
 /** Rewrites every `[Chord]` token in a ChordPro document into its Nashville
  * Number equivalent relative to `key`. Directives, lyrics and blank lines are
  * left untouched — only the bracketed chord tokens change. */
+/** Applies `convert` to a bracket's chord — or to each chord of a "|"
+ * progression bracket like "[ A | F#m | D ]", keeping its spacing. */
+function convertBracket(token: string, convert: (chord: string) => string): string {
+  if (!token.includes('|')) return convert(token);
+  return token
+    .split('|')
+    .map((part) => part.replace(/\S+/, (chord) => convert(chord)))
+    .join('|');
+}
+
 export function convertChordProToNashville(chordpro: string, key: string): string {
-  return chordpro.replace(CHORD_BRACKET, (_, token) => `[${chordToNashville(token, key)}]`);
+  return chordpro.replace(
+    CHORD_BRACKET,
+    (_, token) => `[${convertBracket(token, (c) => chordToNashville(c, key))}]`
+  );
 }
 
 /** Inverse of convertChordProToNashville: rewrites every `[degree]` token
  * back into a concrete chord for `key`. */
 export function convertChordProFromNashville(chordpro: string, key: string): string {
-  return chordpro.replace(CHORD_BRACKET, (_, token) => `[${nashvilleToChord(token, key)}]`);
+  return chordpro.replace(
+    CHORD_BRACKET,
+    (_, token) => `[${convertBracket(token, (c) => nashvilleToChord(c, key))}]`
+  );
 }

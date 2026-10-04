@@ -281,3 +281,37 @@ test('buildChordPro notes an inferred key in a <> comment right after the source
   assert.equal(lines[i + 1], '{comment: <Tom D deduzido pelos acordes - o Cifra Club não informava o tom>}');
   assert.ok(!buildChordPro({ title: 'T', artist: 'A', key: 'D' }, 'D\n').includes('deduzido'));
 });
+
+test('turns "[Intro] A Em7 G D" into a tag with its progression', () => {
+  const out = chordsOverLyricsToChordPro('[Intro] A  Em7  G  D\n');
+  assert.equal(out.trim(), '{Intro}[ A | Em7 | G | D ]');
+});
+
+test('section tags carry one cycle of the section progression', () => {
+  const raw = [
+    '[Primeira Parte]',
+    'A',
+    '  Pressionados',
+    'F#m',
+    '    Perplexos',
+    '                D',
+    'Mas não desesperados',
+    '         A',
+    'Estamos de pé',
+    'F#m',
+    '    Abatidos',
+    '[Sem Acordes]',
+    'só letra',
+  ].join('\n');
+  const out = chordsOverLyricsToChordPro(raw);
+  assert.ok(out.startsWith('{Primeira Parte}[ A | F#m | D ]\n'), out);
+  assert.ok(out.includes('{Sem Acordes}\n'), out);
+});
+
+test('converting to Nashville converts each chord of a "|" progression bracket', async () => {
+  const { convertChordProToNashville } = await import('./chordpro.ts');
+  assert.equal(
+    convertChordProToNashville('{Intro}[ A | Em7 | G | D ]\n[A]la', 'A'),
+    '{Intro}[ 1 | 5m7 | b7 | 4 ]\n[1]la'
+  );
+});
