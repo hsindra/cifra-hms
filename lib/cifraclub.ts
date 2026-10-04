@@ -81,6 +81,11 @@ function scorePreAsCifra(text: string): number {
  * with the chord wrapped as a markdown link/bold or on the next line. */
 function findKey(pageText: string): RegExpMatchArray | null {
   return (
+    // "Tom: F (com forma de E)": com capotraste, os acordes da cifra estão
+    // escritos na forma — é ela que serve de grau 1, não o tom que soa.
+    pageText.match(
+      /Tom\s*:?\s*[A-G](?:#|b)?m?\s*\(\s*[Cc]om\s+[Ff]orma\s+de\s+([A-G](?:#|b)?m?)\s*\)/
+    ) ??
     pageText.match(/Tom\s*:?\s*([A-G](?:#|b)?m?)/) ??
     pageText.match(/\b[Tt][Oo][Mm]\b[^A-Za-z0-9]{0,15}([A-G](?:#|b)?m?)(?![A-Za-z0-9#])/)
   );
