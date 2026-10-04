@@ -744,6 +744,13 @@ button.secondary {
   flex-direction: column;
 }
 
+/* Uma palavra inteira (pode ter acorde no meio) — a linha só quebra entre
+   palavras, ver toWordUnits em ChordProView. */
+.chunk-word {
+  display: inline-flex;
+  flex-wrap: nowrap;
+}
+
 .chunk-chord {
   color: #dc2626;
   font-weight: 700;

@@ -1,7 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ANNOTATION_NEWLINE, parseChordProBody, parseChordProHeader } from '@/lib/chordpro';
+import {
+  ANNOTATION_NEWLINE,
+  parseChordProBody,
+  parseChordProHeader,
+  type ChordProChunk,
+} from '@/lib/chordpro';
 import { nashvilleToChord } from '@/lib/transpose';
 
 const NBSP = ' ';
@@ -64,6 +69,43 @@ function splitAnnotations(str: string): AnnotationSegment[] {
  * letters of the leading plain segment as the chord's beat mark — skipped
  * when the text starts with an annotation, since there's no syllable there
  * to mark. */
+interface WordPiece {
+  chunk: ChordProChunk;
+  index: number;
+  /** The slice of the chunk's lyric in this piece. */
+  lyric: string;
+  /** First piece of its chunk — the one the chord sits on. */
+  first: boolean;
+}
+
+/** Groups a line's chunks into whole words, so the line only wraps between
+ * words when it overflows the frame — never inside a word that has a chord
+ * in the middle ("desesper[4]ados"). Each chunk's lyric is split after its
+ * whitespace runs; a `<nota>` stays in one piece. */
+function toWordUnits(chunks: ChordProChunk[]): WordPiece[][] {
+  const units: WordPiece[][] = [];
+  let current: WordPiece[] = [];
+  const close = () => {
+    if (current.length) units.push(current);
+    current = [];
+  };
+  chunks.forEach((chunk, index) => {
+    if (chunk.kind === 'tag') {
+      close();
+      units.push([{ chunk, index, lyric: '', first: true }]);
+      return;
+    }
+    const pieces = chunk.lyric.match(/(?:<[^>]*>|\S)*\s*/g)?.filter(Boolean) ?? [];
+    if (pieces.length === 0) pieces.push('');
+    pieces.forEach((lyric, k) => {
+      current.push({ chunk, index, lyric, first: k === 0 });
+      if (/\s$/.test(lyric)) close();
+    });
+  });
+  close();
+  return units;
+}
+
 function renderAnnotated(str: string, highlightFirstTwo: boolean): React.ReactNode {
   return splitAnnotations(str).map((seg, k) => {
     if (seg.isAnnotation) {
@@ -354,38 +396,43 @@ export default function ChordProView({
           }
           return (
             <div key={i} className="view-line chords-line">
-              {line.chunks.map((chunk, j) =>
-                chunk.kind === 'tag' ? (
-                  <span className="chunk" key={j}>
-                    <span className="chunk-chord">{NBSP}</span>
-                    {renderTag(chunk.label, i, j === firstTag, 'chunk-lyric ')}
-                  </span>
-                ) : (
-                  <span className="chunk" key={j}>
-                    <span
-                      className={
-                        chunk.chord !== null && chunk.chord.includes('|')
-                          ? 'chunk-chord chunk-chord-plain'
-                          : 'chunk-chord'
-                      }
-                      data-chord={chunk.chord !== null ? '' : undefined}
-                    >
-                      {chunk.chord !== null ? displayChord(chunk.chord) : NBSP}
-                    </span>
-                    <span className="chunk-lyric">
-                      {chunk.lyric
-                        ? renderAnnotated(
-                            chunk.lyric,
-                            chunk.chord !== null &&
-                              showBeatMark &&
-                              !chunk.chord.endsWith('.') &&
-                              !chunk.chord.includes('|')
-                          )
-                        : NBSP}
-                    </span>
-                  </span>
-                )
-              )}
+              {toWordUnits(line.chunks).map((unit, u) => (
+                <span className="chunk-word" key={u}>
+                  {unit.map(({ chunk, index: j, lyric, first }, k) =>
+                    chunk.kind === 'tag' ? (
+                      <span className="chunk" key={k}>
+                        <span className="chunk-chord">{NBSP}</span>
+                        {renderTag(chunk.label, i, j === firstTag, 'chunk-lyric ')}
+                      </span>
+                    ) : (
+                      <span className="chunk" key={k}>
+                        <span
+                          className={
+                            first && chunk.chord !== null && chunk.chord.includes('|')
+                              ? 'chunk-chord chunk-chord-plain'
+                              : 'chunk-chord'
+                          }
+                          data-chord={first && chunk.chord !== null ? '' : undefined}
+                        >
+                          {first && chunk.chord !== null ? displayChord(chunk.chord) : NBSP}
+                        </span>
+                        <span className="chunk-lyric">
+                          {lyric
+                            ? renderAnnotated(
+                                lyric,
+                                first &&
+                                  chunk.chord !== null &&
+                                  showBeatMark &&
+                                  !chunk.chord.endsWith('.') &&
+                                  !chunk.chord.includes('|')
+                              )
+                            : NBSP}
+                        </span>
+                      </span>
+                    )
+                  )}
+                </span>
+              ))}
             </div>
           );
         })}

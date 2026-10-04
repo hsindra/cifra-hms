@@ -315,3 +315,12 @@ test('converting to Nashville converts each chord of a "|" progression bracket',
     '{Intro}[ 1 | 5m7 | b7 | 4 ]\n[1]la'
   );
 });
+
+test('flowSections joins each section into one line, collapsing alignment spaces', async () => {
+  const { flowSections } = await import('./chordpro.ts');
+  const body = '{Intro}[ A | D ]\n\n{Verso}\n[A]  Pressionados\n\nMas não desanimados\n[F#m]    Perplexos\n{Refrão}\n[D]Fé\n';
+  assert.equal(
+    flowSections(body),
+    '{Intro}[ A | D ]\n\n{Verso}\n[A] Pressionados Mas não desanimados [F#m] Perplexos\n\n{Refrão}\n[D]Fé\n'
+  );
+});
