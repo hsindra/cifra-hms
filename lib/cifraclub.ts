@@ -116,8 +116,8 @@ export function normalizeCifraUrl(input: string): string | null {
  * surface a clearer message than a plain "not found". */
 export class CifraAccessError extends Error {
   status: number;
-  constructor(status: number) {
-    super(`Cifra Club recusou o acesso (HTTP ${status}).`);
+  constructor(status: number, detail?: string) {
+    super(`Cifra Club recusou o acesso (HTTP ${status})${detail ? `; ${detail}` : ''}.`);
     this.status = status;
   }
 }
@@ -234,7 +234,7 @@ export async function searchCifra(artist: string, song: string): Promise<CifraPa
   const serper = await serperSearchCandidates(query);
   for (const url of serper) rawCandidates.add(url);
 
-  let blocked = false;
+  let blocked: CifraAccessError | null = null;
   if (rawCandidates.size === 0) {
     throw new CifraNotFoundError(`serper: ${serper.length} link(s)`);
   }
@@ -256,7 +256,10 @@ export async function searchCifra(artist: string, song: string): Promise<CifraPa
       try {
         return await fetchCifra(url, { allowScrape: i < MAX_SCRAPED_CANDIDATES });
       } catch (err) {
-        if (err instanceof CifraAccessError) blocked = true;
+        // Guarda o erro mais informativo (o da raspagem, quando houver).
+        if (err instanceof CifraAccessError && (!blocked || err.message.length > blocked.message.length)) {
+          blocked = err;
+        }
         return null;
       }
     })
@@ -264,7 +267,7 @@ export async function searchCifra(artist: string, song: string): Promise<CifraPa
 
   const results = settled.filter((r): r is CifraPage => r !== null);
   if (results.length === 0) {
-    if (blocked) throw new CifraAccessError(403);
+    if (blocked) throw blocked;
     throw new CifraNotFoundError(
       `${ranked.length} candidato(s) verificado(s), nenhum confirmado como página de cifra`
     );
@@ -342,13 +345,21 @@ interface SerperScrapeResponse {
  * fenced code block in the markdown. */
 async function scrapeCifra(url: string): Promise<CifraPage> {
   const apiKey = process.env.SERPER_API_KEY;
-  if (!apiKey) throw new CifraAccessError(403);
-  const res = await fetch('https://scrape.serper.dev', {
-    method: 'POST',
-    headers: { 'X-API-KEY': apiKey, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ url, includeMarkdown: true }),
-  });
-  if (!res.ok) throw new CifraAccessError(403);
+  if (!apiKey) throw new CifraAccessError(403, 'raspagem: SERPER_API_KEY ausente');
+  let res: Response;
+  try {
+    res = await fetch('https://scrape.serper.dev', {
+      method: 'POST',
+      headers: { 'X-API-KEY': apiKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url, includeMarkdown: true }),
+    });
+  } catch (err) {
+    throw new CifraAccessError(403, `raspagem: erro de rede (${String(err).slice(0, 100)})`);
+  }
+  if (!res.ok) {
+    const body = (await res.text().catch(() => '')).slice(0, 150);
+    throw new CifraAccessError(403, `raspagem: HTTP ${res.status}${body ? ` ${body}` : ''}`);
+  }
   const data = (await res.json()) as SerperScrapeResponse;
   const markdown = data.markdown ?? '';
   const pageText = data.text ?? markdown;
@@ -360,9 +371,32 @@ async function scrapeCifra(url: string): Promise<CifraPage> {
     blocks.push(m[1].replace(/\*\*|`/g, '').replace(/\n$/, ''));
   }
 
+  // Sem bloco de código no markdown: tenta o trecho do texto que vai da
+  // primeira à última linha só de acordes (o alinhamento pode sair pior).
+  if (blocks.length === 0) {
+    for (const source of [markdown, data.text ?? '']) {
+      const lines = source.replace(/\*\*|`/g, '').split('\n');
+      const isChordLine = (l: string) => {
+        const words = l.match(/\S+/g);
+        return !!words && words.every((w) => CHORD_TOKEN.test(w));
+      };
+      const first = lines.findIndex(isChordLine);
+      const last = lines.findLastIndex(isChordLine);
+      if (first >= 0) blocks.push(lines.slice(first, last + 2).join('\n'));
+    }
+  }
+
   const ogTitle = data.metadata?.['og:title'] ?? data.metadata?.title ?? '';
   const [title = '', artist = ''] = ogTitle.split(' - ').map((p) => p.trim());
-  return buildCifraPage(blocks, pageText, title, artist, url);
+  try {
+    return buildCifraPage(blocks, pageText, title, artist, url);
+  } catch {
+    const preview = (markdown || pageText).replace(/\s+/g, ' ').slice(0, 150);
+    throw new CifraAccessError(
+      403,
+      `raspagem veio sem cifra reconhecível (${markdown.length} chars de markdown, ${blocks.length} bloco(s)): "${preview}"`
+    );
+  }
 }
 
 export async function fetchCifra(
