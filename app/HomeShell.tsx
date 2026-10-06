@@ -530,22 +530,15 @@ export default function Home({
     if (next !== chordpro) updateChordpro(next);
   }
 
-  /** Botões V/Pr/R/P: insere "{Rótulo}" onde está o cursor, numa linha só
-   * dela (quebra antes/depois se o cursor estiver no meio de uma linha),
-   * substituindo a seleção quando houver uma. */
+  /** Botões V/Pr/R/P: insere "{Rótulo}" exatamente onde está o cursor, sem
+   * quebrar linha, substituindo a seleção quando houver uma. */
   function insertSectionTag(label: string) {
     const el = codeTextareaRef.current;
     if (!el || chordpro === null) return;
     const start = el.selectionStart;
     const end = el.selectionEnd;
-    const before = chordpro.slice(0, start);
-    const after = chordpro.slice(end);
-    const tag = `{${label}}`;
-    const insertion =
-      (before === '' || before.endsWith('\n') ? '' : '\n') +
-      tag +
-      (after === '' || after.startsWith('\n') ? '' : '\n');
-    updateChordpro(before + insertion + after);
+    const insertion = `{${label}}`;
+    updateChordpro(chordpro.slice(0, start) + insertion + chordpro.slice(end));
     const cursor = start + insertion.length;
     requestAnimationFrame(() => {
       el.focus();
