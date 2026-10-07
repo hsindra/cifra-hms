@@ -20,6 +20,9 @@ import { CSS } from '@dnd-kit/utilities';
 import type { ResolvedSetlist, SongLookupResponse } from '@/lib/types';
 import { addSectionProgressions, flowSections, parseChordProHeader } from '@/lib/chordpro';
 
+const UNDO_MAX_STEPS = 100;
+const UNDO_TYPING_GROUP_MS = 1000;
+
 const FLOW_BUTTON_TITLE = 'Juntar linhas de cada seção (quebra pela largura da tela)';
 const TAG_CHORDS_BUTTON_TITLE = 'Montar nas tags a sequência de acordes da seção';
 
@@ -222,11 +225,12 @@ export default function Home({
   const [results, setResults] = useState<SongLookupResponse[] | null>(null);
 
   const [chordpro, setChordpro] = useState<string | null>(null);
-  // Snapshot do texto ChordPro logo antes da última edição (digitação ou
-  // atalho de inserção) — permite desfazer com um clique, sem depender do
-  // undo nativo do navegador (que se comporta de forma inconsistente com
-  // textarea controlado por React). Só um nível: desfaz só a última edição.
-  const [undoSnapshot, setUndoSnapshot] = useState<string | null>(null);
+  // Pilha de versões do texto ChordPro antes de cada edição (digitação ou
+  // atalho) — cada clique em "Desfazer" volta uma, sem depender do undo
+  // nativo do navegador (inconsistente com textarea controlado por React).
+  // Digitação seguida (pausas < 1s) conta como uma edição só.
+  const [undoStack, setUndoStack] = useState<string[]>([]);
+  const lastTypingAtRef = useRef(0);
   const codeTextareaRef = useRef<HTMLTextAreaElement>(null);
   // Setlist de onde a música individual foi aberta via link "código" (ver
   // openSavedForCodeEdit) — se presente, o voltar (Visualização ou Código)
@@ -363,7 +367,7 @@ export default function Home({
 
   function openResult(result: SongLookupResponse) {
     setChordpro(result.chordpro);
-    setUndoSnapshot(null);
+    setUndoStack([]);
     setReturnToSetlistId(null);
     setViewerMeta({ id: result.id, sourceUrl: result.sourceUrl });
     setViewMode('view');
@@ -378,7 +382,7 @@ export default function Home({
 
   function openSaved(entry: SavedSong) {
     setChordpro(entry.chordpro);
-    setUndoSnapshot(null);
+    setUndoStack([]);
     setReturnToSetlistId(null);
     setViewerMeta({ id: entry.id, sourceUrl: entry.sourceUrl });
     setViewMode('view');
@@ -406,7 +410,7 @@ export default function Home({
 
   function closeViewer() {
     setChordpro(null);
-    setUndoSnapshot(null);
+    setUndoStack([]);
     setViewerMeta({});
     setShowGrau(true);
     setPreferredKey(KEY_OPTIONS[0]);
@@ -495,19 +499,26 @@ export default function Home({
     URL.revokeObjectURL(downloadUrl);
   }
 
-  /** Toda edição do código (digitação ou atalho) passa por aqui, pra sempre
-   * guardar o valor anterior — é o que o botão "Desfazer" restaura. */
-  function updateChordpro(next: string) {
-    setUndoSnapshot(chordpro);
+  /** Toda edição do código (digitação ou atalho) passa por aqui, pra
+   * empilhar o valor anterior — é o que o botão "Desfazer" restaura, um nível
+   * por clique. `typing` agrupa uma sequência de teclas numa entrada só. */
+  function updateChordpro(next: string, { typing = false }: { typing?: boolean } = {}) {
+    const now = Date.now();
+    const continuesTyping = typing && now - lastTypingAtRef.current < UNDO_TYPING_GROUP_MS;
+    lastTypingAtRef.current = typing ? now : 0;
+    if (chordpro !== null && !continuesTyping) {
+      setUndoStack((stack) => [...stack, chordpro].slice(-UNDO_MAX_STEPS));
+    }
     setChordpro(next);
     setDirty(true);
     setSaveMessage(null);
   }
 
   function handleUndoEdit() {
-    if (undoSnapshot === null) return;
-    setChordpro(undoSnapshot);
-    setUndoSnapshot(null);
+    if (undoStack.length === 0) return;
+    setChordpro(undoStack[undoStack.length - 1]);
+    setUndoStack(undoStack.slice(0, -1));
+    lastTypingAtRef.current = 0;
     setDirty(true);
     setSaveMessage(null);
   }
@@ -669,7 +680,7 @@ export default function Home({
         return;
       }
       setChordpro(titledChordpro);
-      setUndoSnapshot(null);
+      setUndoStack([]);
       setViewerMeta((m) => ({ ...m, id: data.song.id }));
       navigateTo(`/song/${data.song.id}`);
       setSaveMessage('Cópia salva!');
@@ -1740,7 +1751,7 @@ export default function Home({
                   className="icon-button"
                   title="Desfazer última edição"
                   aria-label="Desfazer última edição"
-                  disabled={undoSnapshot === null}
+                  disabled={undoStack.length === 0}
                   onClick={handleUndoEdit}
                 >
                   <svg
@@ -2499,7 +2510,7 @@ export default function Home({
             <textarea
               ref={codeTextareaRef}
               value={chordpro}
-              onChange={(e) => updateChordpro(e.target.value)}
+              onChange={(e) => updateChordpro(e.target.value, { typing: true })}
             />
             {/* Mesmos atalhos do topo, duplicados aqui embaixo — depois de
                 rolar um código longo, a barra de cima fica longe do
@@ -2538,7 +2549,7 @@ export default function Home({
                 className="icon-button"
                 title="Desfazer última edição"
                 aria-label="Desfazer última edição"
-                disabled={undoSnapshot === null}
+                disabled={undoStack.length === 0}
                 onClick={handleUndoEdit}
               >
                 <svg
