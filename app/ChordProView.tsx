@@ -97,6 +97,11 @@ function toWordUnits(chunks: ChordProChunk[]): WordPiece[][] {
     }
     const pieces = chunk.lyric.match(/(?:<[^>]*>|\S)*\s*/g)?.filter(Boolean) ?? [];
     if (pieces.length === 0) pieces.push('');
+    // Acorde sobre um espaço ("[2m] Teu"): o espaço sozinho é mais estreito
+    // que o acorde e a coluna abriria um vão — junta com a palavra seguinte.
+    if (chunk.chord !== null && pieces.length > 1 && pieces[0].trim() === '') {
+      pieces.splice(0, 2, pieces[0] + pieces[1]);
+    }
     pieces.forEach((lyric, k) => {
       current.push({ chunk, index, lyric, first: k === 0 });
       if (/\s$/.test(lyric)) close();
