@@ -372,9 +372,12 @@ function buildCifraPage(
 
 function parseCifraHtml(html: string, url: string): CifraPage {
   const $ = cheerio.load(html);
+  // O site novo (Next.js) põe cada linha do <pre> num <div> começando com um
+  // espaço de largura zero — grudado no acorde ("\u200bE"), ele impedia o
+  // acorde de ser reconhecido.
   const blocks = $('pre')
     .toArray()
-    .map((el) => extractPreText(el));
+    .map((el) => extractPreText(el).replace(/[\u200b-\u200f\u2060\ufeff]/g, ''));
 
   const title =
     $('h1.t1').first().text().trim() ||
@@ -388,7 +391,11 @@ function parseCifraHtml(html: string, url: string): CifraPage {
     $('meta[property="og:title"]').attr('content')?.split(' - ')[1]?.trim() ||
     '';
 
-  return buildCifraPage(blocks, $('body').text(), title, artist, url);
+  // Sem scripts/estilos: o site novo embute muito JSON na página, que
+  // poluiria a busca pelo "Tom:" no texto.
+  $('script, style, noscript').remove();
+  const pageText = $('body').text().replace(/[\u200b-\u200f\u2060\ufeff]/g, '');
+  return buildCifraPage(blocks, pageText, title, artist, url);
 }
 
 function isChordOnlyLine(line: string): boolean {
