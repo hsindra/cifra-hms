@@ -568,6 +568,31 @@ export async function fetchCifra(
   return parseCifraHtml(res.html, url);
 }
 
+/** For the debug route when the page has no <pre> cifra: where the lyrics
+ * and the key show up in the HTML now (Cifra Club's markup changed), so the
+ * parser can be adapted. */
+function describeCifraMarkup(html: string): Record<string, unknown> {
+  const $ = cheerio.load(html);
+  const description = $('meta[name="description"]').attr('content') ?? '';
+  const lyric = description.split(',').slice(1).join(',').split('/')[0]?.trim() ?? '';
+  const bodyStart = Math.max(0, html.indexOf('<body'));
+  const around = (needle: string, radius: number) =>
+    needle
+      ? [...html.slice(bodyStart).matchAll(new RegExp(needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'))]
+          .slice(0, 3)
+          .map((m) => html.slice(Math.max(0, bodyStart + m.index! - radius), bodyStart + m.index! + radius))
+      : [];
+  return {
+    preCount: $('pre').length,
+    hasNextData: html.includes('__NEXT_DATA__'),
+    hasNextF: html.includes('self.__next_f'),
+    lyricSearched: lyric,
+    lyricContexts: around(lyric, 700),
+    tomContexts: around('Tom', 200).slice(0, 2),
+    chordTagSamples: [...new Set($('b, [class*="chord"], [data-chord]').toArray().slice(0, 15).map((el) => $.html(el).slice(0, 160)))],
+  };
+}
+
 /** Tries alternative Cifra Club addresses for the same song directly (no
  * scrape), reporting which ones aren't blocked and whether they carry the
  * key and the chord-line indentation. */
@@ -603,6 +628,7 @@ async function probeDirectVariants(url: string): Promise<Record<string, unknown>
       } catch (err) {
         info.parseError = String(err);
         info.htmlStart = res.html.slice(0, 300);
+        Object.assign(info, describeCifraMarkup(res.html));
       }
       return info;
     })
