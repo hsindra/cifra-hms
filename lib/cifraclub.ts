@@ -19,6 +19,8 @@ interface FetchResult {
   ok: boolean;
   status: number;
   html: string | null;
+  /** Why it failed, when there's something more useful than the status. */
+  error?: string;
 }
 
 async function fetchHtml(url: string): Promise<FetchResult> {
@@ -400,6 +402,10 @@ function isChordOnlyLine(line: string): boolean {
  * last chord line plus the lyric lines right below it. */
 function extractCifraSpan(source: string): string | null {
   let lines = source
+    // Caracteres invisíveis/espaços especiais grudados num acorde fazem ele
+    // não ser reconhecido.
+    .replace(/[\u200b-\u200f\u2060\ufeff]/g, '')
+    .replace(/[\u00a0\u2000-\u200a\u202f]/g, ' ')
     .replace(/\*\*|`/g, '')
     .split('\n')
     .filter((l) => !/^#{1,6}\s/.test(l));
@@ -487,17 +493,22 @@ async function fetchViaScraperApi(
   { premium = false }: { premium?: boolean } = {}
 ): Promise<FetchResult> {
   const apiKey = process.env.SCRAPERAPI_KEY;
-  if (!apiKey) return { ok: false, status: 0, html: null };
+  if (!apiKey) return { ok: false, status: 0, html: null, error: 'SCRAPERAPI_KEY ausente' };
   const params = new URLSearchParams({ api_key: apiKey, url, country_code: 'br' });
   if (premium) params.set('premium', 'true');
   try {
     const res = await fetch(`https://api.scraperapi.com/?${params}`, {
       signal: AbortSignal.timeout(25_000),
     });
-    if (!res.ok) return { ok: false, status: res.status, html: null };
+    if (!res.ok) {
+      // Ex: 403 "You have exhausted the API Credits available in this monthly cycle".
+      const body = (await res.text().catch(() => '')).replace(/\s+/g, ' ').slice(0, 160);
+      return { ok: false, status: res.status, html: null, error: body || undefined };
+    }
     return { ok: true, status: res.status, html: await res.text() };
-  } catch {
-    return { ok: false, status: 0, html: null };
+  } catch (err) {
+    const timedOut = err instanceof Error && err.name === 'TimeoutError';
+    return { ok: false, status: 0, html: null, error: timedOut ? 'tempo esgotado' : 'erro de rede' };
   }
 }
 
@@ -532,7 +543,24 @@ export async function fetchCifra(
         // página sem cifra reconhecível (ex: tela de bloqueio) — cai pro Serper
       }
     }
-    return scrapeCifra(url);
+    const proxyNote = viaProxy.html
+      ? 'ScraperAPI: página sem cifra'
+      : `ScraperAPI: ${viaProxy.status ? `HTTP ${viaProxy.status}` : 'falhou'}${
+          viaProxy.error ? ` (${viaProxy.error})` : ''
+        }`;
+    try {
+      return await scrapeCifra(url);
+    } catch (err) {
+      // Mostra também por que o ScraperAPI não resolveu — sem isso o erro só
+      // falava da raspagem do Serper, que é o plano B.
+      if (err instanceof CifraAccessError) {
+        const serperDetail = err.message
+          .replace(/^Cifra Club recusou o acesso \(HTTP \d+\);?\s*/, '')
+          .replace(/\.$/, '');
+        throw new CifraAccessError(403, `${proxyNote}; ${serperDetail}`);
+      }
+      throw err;
+    }
   }
   if (!res.html) {
     throw new Error(`Não foi possível acessar ${url} (HTTP ${res.status || 'erro de rede'}).`);
