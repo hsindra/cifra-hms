@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import {
   DndContext,
   PointerSensor,
@@ -1045,6 +1046,11 @@ export default function Home({
     lastSetlistTapRef.current = null;
     // O duplo clique no desktop seleciona a palavra embaixo do cursor.
     window.getSelection()?.removeAllRanges();
+    // Próxima música recolhida: expande antes de rolar (flushSync pra ela já
+    // estar renderizada aberta quando a rolagem medir o conteúdo).
+    if (setlistSongCollapsed[index + 1]) {
+      flushSync(() => setSetlistSongCollapsed((prev) => ({ ...prev, [index + 1]: false })));
+    }
     scrollToSetlistSongStart(index + 1);
   }
 
