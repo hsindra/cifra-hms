@@ -1182,3 +1182,7 @@ footer.disclaimer {
   width: 22px;
   height: 22px;
 }
+
+.chordpro-view-collapsed {
+  cursor: pointer;
+}

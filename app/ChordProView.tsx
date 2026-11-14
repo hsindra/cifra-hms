@@ -269,12 +269,26 @@ export default function ChordProView({
   const title = header.title || 'Sem título';
   if (songCollapse?.collapsed) {
     return (
-      <div className="chordpro-view chordpro-view-collapsed" style={fontVars}>
+      // O card recolhido inteiro expande a música ao toque, não só o título.
+      <div
+        className="chordpro-view chordpro-view-collapsed"
+        style={fontVars}
+        role="button"
+        tabIndex={0}
+        aria-expanded={false}
+        onClick={songCollapse.onToggle}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            songCollapse.onToggle();
+          }
+        }}
+      >
         <h2 className="view-title">
-          <button type="button" className="view-title-toggle" onClick={songCollapse.onToggle} aria-expanded={false}>
+          <span className="view-title-toggle">
             <span className="chunk-tag-chevron" aria-hidden="true">▸</span>
             {title}
-          </button>
+          </span>
         </h2>
       </div>
     );

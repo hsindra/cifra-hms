@@ -1028,7 +1028,12 @@ export default function Home({
 
   function handleSetlistSongClick(e: React.MouseEvent, index: number) {
     // Cliques em controles (tom, tags, links...) não contam como toque na tela.
-    if ((e.target as Element).closest('button, a, select, input, textarea, label')) {
+    // O card recolhido também: o toque nele só expande a música.
+    if (
+      (e.target as Element).closest(
+        'button, a, select, input, textarea, label, .chordpro-view-collapsed'
+      )
+    ) {
       lastSetlistTapRef.current = null;
       return;
     }
