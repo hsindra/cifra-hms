@@ -2299,7 +2299,7 @@ export default function Home({
                 return (
                   <button
                     type="button"
-                    className="icon-button"
+                    className="icon-button setlist-collapse-fab"
                     aria-label={label}
                     title={label}
                     onClick={() =>
@@ -2311,8 +2311,8 @@ export default function Home({
                     }
                   >
                     <svg
-                      width="16"
-                      height="16"
+                      width="22"
+                      height="22"
                       viewBox="0 0 24 24"
                       fill="none"
                       stroke="currentColor"

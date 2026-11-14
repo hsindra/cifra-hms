@@ -949,6 +949,8 @@ footer.disclaimer {
 .setlist-builder,
 .setlist-view {
   position: relative;
+  /* Espaço pro botão flutuante não cobrir o fim da última música. */
+  padding-bottom: 5rem;
 }
 
 .setlist-name-field {
@@ -1154,4 +1156,29 @@ footer.disclaimer {
 
 .chordpro-view-collapsed .view-title {
   margin-bottom: 0;
+}
+
+/* Recolher/expandir todas no setlist: botão flutuante no canto inferior
+   direito, sempre à mão enquanto rola as músicas. */
+.icon-button.setlist-collapse-fab {
+  position: fixed;
+  right: calc(16px + env(safe-area-inset-right));
+  bottom: calc(20px + env(safe-area-inset-bottom));
+  z-index: 50;
+  width: 52px;
+  height: 52px;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+}
+
+.icon-button.setlist-collapse-fab:hover {
+  color: #fff;
+  filter: brightness(1.1);
+}
+
+.icon-button.setlist-collapse-fab svg {
+  width: 22px;
+  height: 22px;
 }
