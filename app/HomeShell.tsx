@@ -1026,6 +1026,19 @@ export default function Home({
     }
   }
 
+  /** Recolhe/expande uma música do setlist. Expandir uma quando todas
+   * estavam recolhidas leva ela pro topo da tela, pra começar a leitura. */
+  function toggleSetlistSongCollapsed(index: number) {
+    if (!setlistSongCollapsed[index]) {
+      setSetlistSongCollapsed((prev) => ({ ...prev, [index]: true }));
+      return;
+    }
+    const allCollapsed = !!openSetlist?.items.every((_, i) => setlistSongCollapsed[i]);
+    // flushSync: a música já aberta quando a rolagem medir a posição.
+    flushSync(() => setSetlistSongCollapsed((prev) => ({ ...prev, [index]: false })));
+    if (allCollapsed) scrollToSetlistSong(index);
+  }
+
   function handleSetlistSongClick(e: React.MouseEvent, index: number) {
     // Cliques em controles (tom, tags, links...) não contam como toque na tela.
     // O card recolhido também: o toque nele só expande a música.
@@ -2593,8 +2606,7 @@ export default function Home({
                       }}
                       songCollapse={{
                         collapsed: !!setlistSongCollapsed[i],
-                        onToggle: () =>
-                          setSetlistSongCollapsed((prev) => ({ ...prev, [i]: !prev[i] })),
+                        onToggle: () => toggleSetlistSongCollapsed(i),
                       }}
                     />
                   ) : (
