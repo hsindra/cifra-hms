@@ -1138,3 +1138,20 @@ footer.disclaimer {
     display: none;
   }
 }
+
+/* Título da música no setlist como botão de recolher/expandir. */
+.view-title-toggle {
+  all: unset;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+
+.view-title-toggle .chunk-tag-chevron {
+  font-size: 0.7em;
+}
+
+.chordpro-view-collapsed .view-title {
+  margin-bottom: 0;
+}

@@ -160,6 +160,7 @@ export default function ChordProView({
   onEditCode,
   onScrollToTop,
   grauToggle,
+  songCollapse,
 }: {
   text: string;
   viewKey: ViewKey;
@@ -193,6 +194,9 @@ export default function ChordProView({
    * a música aparece em graus; desmarcada, em cifras no tom escolhido
    * (usado na visualização de setlist, por música). */
   grauToggle?: { checked: boolean; onChange: (checked: boolean) => void };
+  /** Quando presente, o título vira um botão que recolhe/expande a música:
+   * recolhida, só o título aparece (usado na visualização de setlist). */
+  songCollapse?: { collapsed: boolean; onToggle: () => void };
 }) {
   const header = parseChordProHeader(text);
   const lines = parseChordProBody(text);
@@ -262,9 +266,32 @@ export default function ChordProView({
     }
   }
 
+  const title = header.title || 'Sem título';
+  if (songCollapse?.collapsed) {
+    return (
+      <div className="chordpro-view chordpro-view-collapsed" style={fontVars}>
+        <h2 className="view-title">
+          <button type="button" className="view-title-toggle" onClick={songCollapse.onToggle} aria-expanded={false}>
+            <span className="chunk-tag-chevron" aria-hidden="true">▸</span>
+            {title}
+          </button>
+        </h2>
+      </div>
+    );
+  }
+
   return (
     <div className="chordpro-view" style={fontVars}>
-      <h2 className="view-title">{header.title || 'Sem título'}</h2>
+      <h2 className="view-title">
+        {songCollapse ? (
+          <button type="button" className="view-title-toggle" onClick={songCollapse.onToggle} aria-expanded>
+            <span className="chunk-tag-chevron" aria-hidden="true">▾</span>
+            {title}
+          </button>
+        ) : (
+          title
+        )}
+      </h2>
       <p className="view-artist">
         {keySelect ? (
           <label className="badge badge-tom badge-select">

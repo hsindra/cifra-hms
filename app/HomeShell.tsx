@@ -291,6 +291,9 @@ export default function Home({
   // sobrepõe o setlistGrau geral. Mexer no geral, abrir outro setlist ou
   // reordenar/remover músicas (que muda os índices) zera tudo.
   const [setlistSongGrau, setSetlistSongGrau] = useState<Record<number, boolean>>({});
+  // Músicas recolhidas no setlist (só o título aparece), por índice — zera
+  // nas mesmas situações do grau por música, exceto ao mexer no grau geral.
+  const [setlistSongCollapsed, setSetlistSongCollapsed] = useState<Record<number, boolean>>({});
   const [addingToSetlist, setAddingToSetlist] = useState(false);
   const [reorderingSetlist, setReorderingSetlist] = useState(false);
   const [setlistMenuOpen, setSetlistMenuOpen] = useState(false);
@@ -1037,6 +1040,7 @@ export default function Home({
     setOpenSetlistError(null);
     setSetlistGrau(true);
     setSetlistSongGrau({});
+    setSetlistSongCollapsed({});
     setAddingToSetlist(false);
     try {
       const res = await fetch(`/api/setlists/${id}`);
@@ -1095,6 +1099,7 @@ export default function Home({
     if (!openSetlist) return;
     const updatedItems = openSetlist.items.filter((_, i) => i !== index);
     setSetlistSongGrau({});
+    setSetlistSongCollapsed({});
     setOpenSetlist({ ...openSetlist, items: updatedItems });
     persistSetlistItems(openSetlist.id, openSetlist.name, updatedItems);
   }
@@ -1113,6 +1118,7 @@ export default function Home({
     if (oldIndex === -1 || newIndex === -1) return;
     const updatedItems = arrayMove(openSetlist.items, oldIndex, newIndex);
     setSetlistSongGrau({});
+    setSetlistSongCollapsed({});
     setOpenSetlist({ ...openSetlist, items: updatedItems });
     persistSetlistItems(openSetlist.id, openSetlist.name, updatedItems);
   }
@@ -2489,6 +2495,11 @@ export default function Home({
                         checked: setlistSongGrau[i] ?? setlistGrau,
                         onChange: (checked) =>
                           setSetlistSongGrau((prev) => ({ ...prev, [i]: checked })),
+                      }}
+                      songCollapse={{
+                        collapsed: !!setlistSongCollapsed[i],
+                        onToggle: () =>
+                          setSetlistSongCollapsed((prev) => ({ ...prev, [i]: !prev[i] })),
                       }}
                     />
                   ) : (
