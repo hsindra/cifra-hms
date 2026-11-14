@@ -2247,6 +2247,49 @@ export default function Home({
         <div className="setlist-view">
           <div className="setlist-view-header">
             <h2 className="setlist-view-name">{openSetlist.name}</h2>
+            {openSetlist.items.length > 0 &&
+              (() => {
+                const allCollapsed = openSetlist.items.every((_, i) => setlistSongCollapsed[i]);
+                const label = allCollapsed ? 'Expandir todas' : 'Recolher todas';
+                return (
+                  <button
+                    type="button"
+                    className="icon-button"
+                    aria-label={label}
+                    title={label}
+                    onClick={() =>
+                      setSetlistSongCollapsed(
+                        allCollapsed
+                          ? {}
+                          : Object.fromEntries(openSetlist.items.map((_, i) => [i, true]))
+                      )
+                    }
+                  >
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      {allCollapsed ? (
+                        <>
+                          <path d="m7 15 5 5 5-5" />
+                          <path d="m7 9 5-5 5 5" />
+                        </>
+                      ) : (
+                        <>
+                          <path d="m7 20 5-5 5 5" />
+                          <path d="m7 4 5 5 5-5" />
+                        </>
+                      )}
+                    </svg>
+                  </button>
+                );
+              })()}
             <button
               type="button"
               className={reorderingSetlist ? 'icon-button active' : 'icon-button'}
