@@ -21,6 +21,10 @@ import type { ResolvedSetlist, SongLookupResponse } from '@/lib/types';
 import { addSectionProgressions, flowSections, parseChordProHeader } from '@/lib/chordpro';
 
 const UNDO_MAX_STEPS = 100;
+
+/** Gesto de deslizar pra esquerda que recolhe uma música do setlist. */
+const SWIPE_MIN_DISTANCE = 60;
+const SWIPE_MAX_MS = 700;
 const UNDO_TYPING_GROUP_MS = 1000;
 
 const FLOW_BUTTON_TITLE = 'Juntar linhas de cada seção (quebra pela largura da tela)';
@@ -985,6 +989,41 @@ export default function Home({
   const lastSetlistTapRef = useRef<{ time: number; x: number; y: number; index: number } | null>(
     null
   );
+
+  // Deslizar o dedo da direita pra esquerda numa música expandida do setlist
+  // recolhe a música (ver handleSetlistSongTouchEnd).
+  const setlistSwipeRef = useRef<{ x: number; y: number; time: number } | null>(null);
+
+  function handleSetlistSongTouchStart(e: React.TouchEvent) {
+    if (e.touches.length !== 1) {
+      setlistSwipeRef.current = null;
+      return;
+    }
+    const t = e.touches[0];
+    setlistSwipeRef.current = { x: t.clientX, y: t.clientY, time: performance.now() };
+  }
+
+  function handleSetlistSongTouchEnd(e: React.TouchEvent, index: number) {
+    const start = setlistSwipeRef.current;
+    setlistSwipeRef.current = null;
+    if (!start || setlistSongCollapsed[index]) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - start.x;
+    const dy = t.clientY - start.y;
+    // Gesto horizontal claro, pra esquerda, e rápido — não confunde com a
+    // rolagem vertical da página.
+    const isSwipeLeft =
+      dx < -SWIPE_MIN_DISTANCE &&
+      Math.abs(dy) < Math.abs(dx) / 2 &&
+      performance.now() - start.time < SWIPE_MAX_MS;
+    if (!isSwipeLeft) return;
+    setSetlistSongCollapsed((prev) => ({ ...prev, [index]: true }));
+    // Recolher uma música longa no meio dela tiraria o título da tela.
+    const block = setlistSongBlockRefs.current.get(index);
+    if (block && block.getBoundingClientRect().top < 0) {
+      requestAnimationFrame(() => block.scrollIntoView({ block: 'start' }));
+    }
+  }
 
   function handleSetlistSongClick(e: React.MouseEvent, index: number) {
     // Cliques em controles (tom, tags, links...) não contam como toque na tela.
@@ -2511,6 +2550,8 @@ export default function Home({
                   key={`${item.songId}-${i}`}
                   className="setlist-song-block"
                   onClick={(e) => handleSetlistSongClick(e, i)}
+                  onTouchStart={handleSetlistSongTouchStart}
+                  onTouchEnd={(e) => handleSetlistSongTouchEnd(e, i)}
                   ref={(el) => {
                     if (el) setlistSongBlockRefs.current.set(i, el);
                     else setlistSongBlockRefs.current.delete(i);
