@@ -515,3 +515,85 @@ export function convertChordProFromNashville(chordpro: string, key: string): str
     (_, token) => `[${convertBracket(token, (c) => nashvilleToChord(c, key))}]`
   );
 }
+
+const SECTION_CAPS_WORDS = 2;
+const WORD_CHAR = /[\p{L}\p{N}_'’-]/u;
+const TAG_TOKEN = /\{[^:{}]+\}/;
+
+/** Uppercases the lyric letters of one line, skipping `[chords]`, `{tags}`
+ * and `<notes>`, until `wordsLeft` words are done. A chord inside a word
+ * ("Da[4]nçaremos") doesn't split it. Returns the new line and how many
+ * words are still left to uppercase. */
+function uppercaseLeadingWords(line: string, wordsLeft: number): { line: string; wordsLeft: number } {
+  let out = '';
+  let inWord = false;
+  let i = 0;
+  while (i < line.length) {
+    const ch = line[i];
+    const close = ch === '[' ? ']' : ch === '{' ? '}' : ch === '<' ? '>' : null;
+    if (close) {
+      const end = line.indexOf(close, i);
+      const stop = end === -1 ? line.length : end + 1;
+      out += line.slice(i, stop);
+      // Acorde no meio da palavra não a quebra; tag e anotação quebram.
+      if (ch !== '[' && inWord) {
+        inWord = false;
+        wordsLeft -= 1;
+      }
+      i = stop;
+      continue;
+    }
+    if (WORD_CHAR.test(ch)) {
+      inWord = true;
+      out += wordsLeft > 0 ? ch.toLocaleUpperCase('pt-BR') : ch;
+    } else {
+      if (inWord) wordsLeft -= 1;
+      inWord = false;
+      out += ch;
+    }
+    i += 1;
+  }
+  if (inWord) wordsLeft -= 1;
+  return { line: out, wordsLeft: Math.max(0, wordsLeft) };
+}
+
+/** Whether a line has lyric text to count words from — not a directive, a
+ * guitar-tab line, or a line of only chords/tags/notes. */
+function hasLyricText(line: string): boolean {
+  if (DIRECTIVE_LINE.test(line) || TAB_LINE_RE.test(line)) return false;
+  const text = line.replace(/\[[^\]]*\]|\{[^}]*\}|<[^>]*>/g, '');
+  return /[\p{L}]/u.test(text);
+}
+
+/** Puts the first two lyric words of every part of the song in uppercase —
+ * a part starts at each `{tag}` (Verso, Refrão, Ponte...); in a song with no
+ * tags at all, at each stanza (after a blank line). Chords, tags, notes,
+ * directives and tab lines are left untouched. Idempotent. */
+export function uppercaseSectionStarts(chordpro: string): string {
+  const lines = chordpro.split('\n');
+  const hasTags = lines.some((l) => !DIRECTIVE_LINE.test(l) && TAG_TOKEN.test(l));
+  let wordsLeft = hasTags ? 0 : SECTION_CAPS_WORDS;
+  return lines
+    .map((line) => {
+      if (DIRECTIVE_LINE.test(line)) return line;
+      if (hasTags) {
+        const tag = line.match(TAG_TOKEN);
+        if (tag) {
+          // Conta só o que vem depois da tag na mesma linha.
+          wordsLeft = SECTION_CAPS_WORDS;
+          const cut = tag.index! + tag[0].length;
+          const rest = uppercaseLeadingWords(line.slice(cut), wordsLeft);
+          wordsLeft = rest.wordsLeft;
+          return line.slice(0, cut) + rest.line;
+        }
+      } else if (line.trim() === '') {
+        wordsLeft = SECTION_CAPS_WORDS;
+        return line;
+      }
+      if (wordsLeft === 0 || !hasLyricText(line)) return line;
+      const res = uppercaseLeadingWords(line, wordsLeft);
+      wordsLeft = res.wordsLeft;
+      return res.line;
+    })
+    .join('\n');
+}

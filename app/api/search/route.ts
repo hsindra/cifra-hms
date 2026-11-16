@@ -7,7 +7,12 @@ import {
   CifraNotFoundError,
   SearchConfigError,
 } from '@/lib/cifraclub';
-import { buildChordPro, convertChordProToNashville, removeTablature } from '@/lib/chordpro';
+import {
+  buildChordPro,
+  convertChordProToNashville,
+  removeTablature,
+  uppercaseSectionStarts,
+} from '@/lib/chordpro';
 import { isMinorKey, relativeMajorKey } from '@/lib/transpose';
 import { listSongs, type SavedSong } from '@/lib/store';
 import { songMatchScore, MATCH_THRESHOLD } from '@/lib/fuzzyMatch';
@@ -64,7 +69,8 @@ function toSongResult(c: CifraPage, settings: ImportSettings): SongLookupRespons
     rawText
   );
   return {
-    chordpro: convertChordProToNashville(chordproConcrete, effectiveKey),
+    // Duas primeiras palavras de cada parte em caixa alta (ver uppercaseSectionStarts).
+    chordpro: uppercaseSectionStarts(convertChordProToNashville(chordproConcrete, effectiveKey)),
     title: c.title,
     artist: c.artist,
     key: effectiveKey,

@@ -415,3 +415,41 @@ test('"[Intro] F# B7M" and chord lines with 7M are converted', () => {
   assert.ok(out.startsWith('{Intro}[ F# | B7M | F# | B7M ]'), out);
   assert.ok(out.includes('[F#]Esse é o meu [B7M]respirar'), out);
 });
+
+test('uppercaseSectionStarts: first two lyric words of each tagged part', async () => {
+  const { uppercaseSectionStarts } = await import('./chordpro.ts');
+  const src = [
+    '{title: Santo Espírito}',
+    '{key: G}',
+    '',
+    '{Intro}[ 1 | 4 ]',
+    '{Verso}[ 1 | 6m ]',
+    'A [1]tua graça nos faz dançar',
+    'Co[6m]m toda força',
+    '',
+    '{Refrão}',
+    '[4]Da[5]nçaremos gratos por [1]ti',
+    '{Ponte}',
+    '[1] [4]',
+    'é <nota> o transbordar',
+    '{Final}[1]Santo, santo',
+  ].join('\n');
+  const out = uppercaseSectionStarts(src).split('\n');
+  assert.equal(out[0], '{title: Santo Espírito}');
+  assert.equal(out[3], '{Intro}[ 1 | 4 ]');
+  assert.equal(out[5], 'A [1]TUA graça nos faz dançar');
+  assert.equal(out[6], 'Co[6m]m toda força');
+  assert.equal(out[9], '[4]DA[5]NÇAREMOS GRATOS por [1]ti');
+  assert.equal(out[11], '[1] [4]');
+  assert.equal(out[12], 'É <nota> O transbordar');
+  assert.equal(out[13], '{Final}[1]SANTO, SANTO');
+  assert.equal(uppercaseSectionStarts(uppercaseSectionStarts(src)), uppercaseSectionStarts(src));
+});
+
+test('uppercaseSectionStarts: stanzas when the song has no tags', async () => {
+  const { uppercaseSectionStarts } = await import('./chordpro.ts');
+  assert.equal(
+    uppercaseSectionStarts('{title: T}\n[1]vem espírito santo\nsopra\n\n[4]tu és\n'),
+    '{title: T}\n[1]VEM ESPÍRITO santo\nsopra\n\n[4]TU ÉS\n'
+  );
+});
