@@ -2488,7 +2488,7 @@ export default function Home({
           </div>
 
           <div className="print-area">
-          <h2 className="setlist-print-title">{openSetlist.name}</h2>
+          <h2 className="setlist-print-title print-only">{openSetlist.name}</h2>
           {openSetlist.items.length > 0 &&
             (reorderingSetlist ? (
               <DndContext
