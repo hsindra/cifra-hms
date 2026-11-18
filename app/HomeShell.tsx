@@ -22,6 +22,7 @@ import type { ResolvedSetlist, SongLookupResponse } from '@/lib/types';
 import {
   addSectionProgressions,
   flowSections,
+  moveChordsToSyllableStart,
   parseChordProHeader,
   uppercaseSectionStarts,
 } from '@/lib/chordpro';
@@ -548,6 +549,22 @@ export default function Home({
     if (next !== chordpro) updateChordpro(next);
   }
 
+  /** Menu da engrenagem → "Acordes no início da sílaba": corrige acordes
+   * marcados na vogal ("D[1]ia" → "[1]Dia"). Passa por updateChordpro, então
+   * dá pra desfazer no editor e precisa salvar como qualquer edição. */
+  function handleMoveChordsToSyllableStart() {
+    if (!chordpro) return;
+    const next = moveChordsToSyllableStart(chordpro);
+    if (next === chordpro) {
+      setSaveMessage('Nenhum acorde para ajustar.');
+      return;
+    }
+    updateChordpro(next);
+    setSaveMessage(
+      viewerMeta.id ? 'Acordes ajustados.' : 'Acordes ajustados — salve a música para guardar.'
+    );
+  }
+
   /** Botão "acordes nas tags": cada {tag} de seção ganha (ou tem refeita) a sequência
    * de acordes da sua seção (ver addSectionProgressions).
    * Também desfazível. */
@@ -712,15 +729,16 @@ export default function Home({
 
   // Auto-save: while editing the raw ChordPro code, persist automatically a
   // moment after the user stops typing (creates the song on first edit if it
-  // isn't saved yet, same as the manual save button).
+  // isn't saved yet, same as the manual save button). Fora do código, só uma
+  // música já salva é gravada sozinha (ex: ajuste de acordes pelo menu).
   useEffect(() => {
-    if (!dirty || viewMode !== 'code' || saving) return;
+    if (!dirty || saving || (viewMode !== 'code' && !viewerMeta.id)) return;
     const timer = setTimeout(() => {
       handleSave();
     }, 1200);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chordpro, dirty, viewMode, saving]);
+  }, [chordpro, dirty, viewMode, saving, viewerMeta.id]);
 
   async function loadSavedSongs() {
     setSavedLoading(true);
@@ -2025,6 +2043,30 @@ export default function Home({
                       <span className="switch-track" />
                     </span>
                   </label>
+                  <button
+                    type="button"
+                    className="menu-item-button"
+                    onClick={() => {
+                      handleMoveChordsToSyllableStart();
+                      setMenuOpen(false);
+                    }}
+                  >
+                    <svg
+                      className="menu-icon"
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M19 12H5" />
+                      <polyline points="11 6 5 12 11 18" />
+                    </svg>
+                    Acordes no início da sílaba
+                  </button>
                   <button
                     type="button"
                     className="menu-item-button"

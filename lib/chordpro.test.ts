@@ -453,3 +453,26 @@ test('uppercaseSectionStarts: stanzas when the song has no tags', async () => {
     '{title: T}\n[1]VEM ESPÍRITO santo\nsopra\n\n[4]TU ÉS\n'
   );
 });
+
+test('moveChordsToSyllableStart moves chords from the vowel to the syllable start', async () => {
+  const { moveChordsToSyllableStart } = await import('./chordpro.ts');
+  const cases: [string, string][] = [
+    ['D[1]ia', '[1]Dia'],
+    ['Mas não desesper[4]ados', 'Mas não desespe[4]rados'],
+    ['É o tr[2m]ansbordar', 'É o [2m]transbordar'],
+    ['Eu qu[1]ero', 'Eu [1]quero'],
+    ['A fest[1]a', 'A fes[1]ta'],
+    ['Da[4]nçaremos', 'Da[4]nçaremos'],
+    ['[1]Dia', '[1]Dia'],
+    ['Senho[5]r', 'Senho[5]r'],
+    ['gl[1]ória e ch[4]ama', '[1]glória e [4]chama'],
+    ['Po[6m]r toda', 'Po[6m]r toda'],
+    ['{Verso}[ 1 | 4 ]', '{Verso}[ 1 | 4 ]'],
+    ['{title: D[1]ia}', '{title: D[1]ia}'],
+    ['[1]D[4]ia', '[1]D[4]ia'],
+  ];
+  for (const [input, expected] of cases) {
+    assert.equal(moveChordsToSyllableStart(input), expected, input);
+    assert.equal(moveChordsToSyllableStart(expected), expected, `idempotent: ${expected}`);
+  }
+});

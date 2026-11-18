@@ -274,7 +274,8 @@ export function flowSections(body: string): string {
 }
 
 export function buildChordPro(meta: SongMeta, rawCifraText: string): string {
-  const body = chordsOverLyricsToChordPro(rawCifraText);
+  // Acordes no começo da sílaba, não na vogal (ver moveChordsToSyllableStart).
+  const body = moveChordsToSyllableStart(chordsOverLyricsToChordPro(rawCifraText));
   const header: string[] = [];
   header.push(`{title: ${meta.title}}`);
   header.push(`{artist: ${meta.artist}}`);
@@ -594,6 +595,54 @@ export function uppercaseSectionStarts(chordpro: string): string {
       const res = uppercaseLeadingWords(line, wordsLeft);
       wordsLeft = res.wordsLeft;
       return res.line;
+    })
+    .join('\n');
+}
+
+const VOWEL = /[aeiouáéíóúâêôãõàüy]/i;
+const LETTER = /\p{L}/u;
+/** Two-consonant syllable onsets in Portuguese: consonant + l/r, and the
+ * digraphs ch/lh/nh. */
+const ONSET_CLUSTER = /^(?:[bcdfgkptv][lr]|[cln]h)$/i;
+
+/** How many letters before a mid-word chord belong to the syllable the chord
+ * should start: "D[1]ia" → 1 (D), "tr[2m]ans" → 2 (tr), "qu[1]ero" → 2
+ * (qu), "fest[1]a" → 1 (t). 0 when the chord already starts the syllable. */
+function syllableOnsetLength(before: string): number {
+  const c1 = before.at(-1) ?? '';
+  const c0 = before.at(-2) ?? '';
+  if (!LETTER.test(c1)) return 0;
+  if (/u/i.test(c1) && /[qg]/i.test(c0)) return 2;
+  if (VOWEL.test(c1)) return 0;
+  if (LETTER.test(c0) && !VOWEL.test(c0) && ONSET_CLUSTER.test(c0 + c1)) return 2;
+  return 1;
+}
+
+/** Cifra Club puts chords over the vowel ("D[1]ia", "desesper[4]ados");
+ * moves each chord sitting right before a vowel inside a word back to the
+ * start of its syllable ("[1]Dia", "desespe[4]rados"). Chords before a
+ * consonant, at a word start or after another chord stay where they are.
+ * Directives are untouched. Idempotent. */
+export function moveChordsToSyllableStart(chordpro: string): string {
+  return chordpro
+    .split('\n')
+    .map((line) => {
+      if (DIRECTIVE_LINE.test(line) || !line.includes('[')) return line;
+      // Pedaços alternados: texto, [acorde], texto, [acorde], ...
+      const parts = line.split(/(\[[^\]]*\])/);
+      for (let i = 1; i < parts.length; i += 2) {
+        const before = parts[i - 1];
+        const after = parts[i + 1] ?? '';
+        if (!VOWEL.test(after[0] ?? '') || /\|/.test(parts[i])) continue;
+        // Não atravessa outro acorde/tag/anotação no texto de antes.
+        const n = syllableOnsetLength(before.replace(/.*[\]}>]/, ''));
+        if (n === 0) continue;
+        // Colaria em outro acorde ("[1]D[4]ia") — deixa como está.
+        if (before.length === n && i > 1) continue;
+        parts[i - 1] = before.slice(0, -n);
+        parts[i + 1] = before.slice(-n) + after;
+      }
+      return parts.join('');
     })
     .join('\n');
 }
