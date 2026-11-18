@@ -111,6 +111,25 @@ function toWordUnits(chunks: ChordProChunk[]): WordPiece[][] {
   return units;
 }
 
+/** Número grudado no começo de uma palavra ("3te", "2digno" — marcação de
+ * repetição) aparece em cinza claro, pra não competir com a letra. */
+const LEADING_COUNT = /(?<![\p{L}\p{N}])(\d+)(?=\p{L})/u;
+
+function renderCounts(text: string): React.ReactNode {
+  const parts = text.split(new RegExp(LEADING_COUNT.source, 'gu'));
+  if (parts.length === 1) return text;
+  // split com grupo de captura: índices ímpares são os números.
+  return parts.map((part, i) =>
+    i % 2 === 1 ? (
+      <span key={i} className="lyric-count">
+        {part}
+      </span>
+    ) : (
+      part
+    )
+  );
+}
+
 function renderAnnotated(str: string, highlightFirstTwo: boolean): React.ReactNode {
   return splitAnnotations(str).map((seg, k) => {
     if (seg.isAnnotation) {
@@ -129,12 +148,12 @@ function renderAnnotated(str: string, highlightFirstTwo: boolean): React.ReactNo
     if (highlightFirstTwo && k === 0) {
       return (
         <span key={k}>
-          <span className="chunk-lyric-highlight">{seg.text.slice(0, 2)}</span>
-          {seg.text.slice(2)}
+          <span className="chunk-lyric-highlight">{renderCounts(seg.text.slice(0, 2))}</span>
+          {renderCounts(seg.text.slice(2))}
         </span>
       );
     }
-    return <span key={k}>{seg.text}</span>;
+    return <span key={k}>{renderCounts(seg.text)}</span>;
   });
 }
 

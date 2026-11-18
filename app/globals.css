@@ -1186,3 +1186,9 @@ footer.disclaimer {
 .chordpro-view-collapsed {
   cursor: pointer;
 }
+
+/* Número de repetição grudado na palavra ("3te", "2digno"). */
+.lyric-count {
+  color: var(--muted);
+  opacity: 0.7;
+}
