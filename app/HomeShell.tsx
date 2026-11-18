@@ -19,7 +19,12 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import type { ResolvedSetlist, SongLookupResponse } from '@/lib/types';
-import { addSectionProgressions, flowSections, parseChordProHeader } from '@/lib/chordpro';
+import {
+  addSectionProgressions,
+  flowSections,
+  parseChordProHeader,
+  uppercaseSectionStarts,
+} from '@/lib/chordpro';
 
 const UNDO_MAX_STEPS = 100;
 
@@ -291,6 +296,8 @@ export default function Home({
 
   const [openSetlist, setOpenSetlist] = useState<ResolvedSetlist | null>(null);
   const [openSetlistError, setOpenSetlistError] = useState<string | null>(null);
+  const [setlistNotice, setSetlistNotice] = useState<string | null>(null);
+  const [applyingSetlistCaps, setApplyingSetlistCaps] = useState(false);
   const [setlistGrau, setSetlistGrau] = useState(true);
   // Grau por música no setlist (caixa "grau" de cada música), por índice —
   // sobrepõe o setlistGrau geral. Mexer no geral, abrir outro setlist ou
@@ -353,6 +360,7 @@ export default function Home({
   function closeSetlistUi() {
     setOpenSetlist(null);
     setOpenSetlistError(null);
+    setSetlistNotice(null);
     setCreatingSetlist(false);
     setAddingToSetlist(false);
     setReorderingSetlist(false);
@@ -1039,6 +1047,72 @@ export default function Home({
     if (allCollapsed) scrollToSetlistSong(index);
   }
 
+  /** Menu do setlist → "Caixa alta nas partes": aplica uppercaseSectionStarts
+   * (duas primeiras palavras de cada parte em caixa alta) no código de cada
+   * música do setlist e salva as que mudarem. */
+  async function applyCapsToSetlistSongs() {
+    if (!openSetlist || applyingSetlistCaps) return;
+    const songs = new Map<string, SavedSong>();
+    for (const item of openSetlist.items) if (item.song) songs.set(item.song.id, item.song);
+    const changed = [...songs.values()]
+      .map((song) => ({ song, chordpro: uppercaseSectionStarts(song.chordpro) }))
+      .filter(({ song, chordpro }) => chordpro !== song.chordpro);
+    if (changed.length === 0) {
+      setSetlistNotice('Todas as músicas do setlist já estão com a caixa alta nas partes.');
+      return;
+    }
+    if (
+      !window.confirm(
+        `Colocar em caixa alta as duas primeiras palavras de cada parte em ${changed.length} música(s) deste setlist? As músicas serão salvas.`
+      )
+    ) {
+      return;
+    }
+    setApplyingSetlistCaps(true);
+    setSetlistNotice(null);
+    setOpenSetlistError(null);
+    const saved = new Map<string, SavedSong>();
+    const failed: string[] = [];
+    for (const { song, chordpro } of changed) {
+      try {
+        const res = await fetch(`/api/songs/${song.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: song.title,
+            artist: song.artist,
+            key: song.key,
+            preferredKey: song.preferredKey,
+            capo: song.capo,
+            sourceUrl: song.sourceUrl,
+            chordpro,
+          }),
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok || !data?.song) throw new Error();
+        saved.set(song.id, data.song as SavedSong);
+      } catch {
+        failed.push(song.title);
+      }
+    }
+    if (saved.size > 0) {
+      setOpenSetlist((prev) =>
+        prev
+          ? {
+              ...prev,
+              items: prev.items.map((item) =>
+                item.song && saved.has(item.song.id) ? { ...item, song: saved.get(item.song.id)! } : item
+              ),
+            }
+          : prev
+      );
+      setSavedSongs((prev) => (prev ? prev.map((s) => saved.get(s.id) ?? s) : prev));
+    }
+    setApplyingSetlistCaps(false);
+    if (failed.length) setOpenSetlistError(`Não foi possível salvar: ${failed.join(', ')}.`);
+    if (saved.size) setSetlistNotice(`Caixa alta aplicada em ${saved.size} música(s).`);
+  }
+
   function handleSetlistSongClick(e: React.MouseEvent, index: number) {
     // Cliques em controles (tom, tags, links...) não contam como toque na tela.
     // O card recolhido também: o toque nele só expande a música.
@@ -1101,6 +1175,7 @@ export default function Home({
 
   async function openSetlistById(id: string) {
     setOpenSetlistError(null);
+    setSetlistNotice(null);
     setSetlistGrau(true);
     setSetlistSongGrau({});
     setSetlistSongCollapsed({});
@@ -2457,6 +2532,32 @@ export default function Home({
                   </label>
                   <button
                     type="button"
+                    className="menu-item-button"
+                    disabled={applyingSetlistCaps}
+                    onClick={() => {
+                      setSetlistMenuOpen(false);
+                      applyCapsToSetlistSongs();
+                    }}
+                  >
+                    <svg
+                      className="menu-icon"
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M4 20 9 4l5 16" />
+                      <path d="M5.5 15h7" />
+                      <path d="M15 20V10h3.5a2.5 2.5 0 0 1 0 5H15h4a2.5 2.5 0 0 1 0 5h-4" />
+                    </svg>
+                    {applyingSetlistCaps ? 'Aplicando caixa alta…' : 'Caixa alta nas partes'}
+                  </button>
+                  <button
+                    type="button"
                     className="menu-item-button danger"
                     onClick={() => {
                       handleDeleteSetlist(openSetlist.id);
@@ -2565,6 +2666,7 @@ export default function Home({
           )}
 
           {openSetlistError && <p className="error">{openSetlistError}</p>}
+          {setlistNotice && <p className="meta">{setlistNotice}</p>}
 
             {openSetlist.items.length === 0 ? (
               <p className="meta">Nenhuma música neste setlist ainda — toque em Adicionar.</p>
