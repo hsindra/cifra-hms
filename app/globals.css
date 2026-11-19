@@ -1217,8 +1217,25 @@ footer.disclaimer {
   flex-wrap: wrap;
 }
 
-.chordpro-edit-done {
+/* "Concluir" da edição da letra: flutuante no canto inferior direito; no
+   setlist, à esquerda do botão de recolher/expandir todas (42px + 10px). */
+.edit-done-fab {
+  position: fixed;
+  right: calc(16px + env(safe-area-inset-right));
+  bottom: calc(20px + env(safe-area-inset-bottom));
+  z-index: 50;
+  height: 42px;
+  padding: 0 1.1rem;
+  border-radius: 999px;
+  border: none;
+  background: var(--accent);
+  color: #fff;
   font-weight: 600;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+}
+
+.setlist-view .edit-done-fab {
+  right: calc(16px + 42px + 10px + env(safe-area-inset-right));
 }
 
 /* Botão só com ícone ao lado do link do Cifra Club (lápis, </>). */

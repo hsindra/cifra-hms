@@ -81,12 +81,14 @@ export default function ChordProEditView({
       <h2 className="view-title">{header.title || 'Sem título'}</h2>
       <p className="meta chordpro-edit-hint">
         Toque num trecho da letra para editar. Acordes e tags: use o código.
-        {onDone && (
-          <button type="button" className="source-link chordpro-edit-done" onClick={onDone}>
-            Concluir
-          </button>
-        )}
       </p>
+      {onDone && (
+        // Flutuante, sempre à mão enquanto rola — no setlist, ao lado do
+        // botão de recolher/expandir todas (ver .edit-done-fab no CSS).
+        <button type="button" className="edit-done-fab" onClick={onDone}>
+          Concluir
+        </button>
+      )}
       <div className="view-body">
         {lines.map((line, i) => {
           if (DIRECTIVE_LINE.test(line)) return null;
