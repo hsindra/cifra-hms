@@ -1187,10 +1187,16 @@ footer.disclaimer {
   cursor: pointer;
 }
 
-/* Números na letra ("3te", "se3rá"). */
+/* Números na letra ("3te", "se3rá"): cinza levemente claro. */
 .lyric-count {
   color: var(--muted);
-  opacity: 0.7;
+  opacity: 0.85;
+}
+
+@media (prefers-color-scheme: light) {
+  .lyric-count {
+    opacity: 0.6;
+  }
 }
 
 /* Edição da letra na apresentação (ChordProEditView). */
