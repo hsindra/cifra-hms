@@ -111,9 +111,9 @@ function toWordUnits(chunks: ChordProChunk[]): WordPiece[][] {
   return units;
 }
 
-/** Número grudado no começo de uma palavra ("3te", "2digno" — marcação de
- * repetição) aparece em cinza claro, pra não competir com a letra. */
-const LEADING_COUNT = /(?<![\p{L}\p{N}])(\d+)(?=\p{L})/u;
+/** Qualquer número na letra ("3te", "se3rá", "2x" — marcações de repetição
+ * e afins) aparece em cinza claro, pra não competir com a letra. */
+const LEADING_COUNT = /(\d+)/u;
 
 function renderCounts(text: string): React.ReactNode {
   const parts = text.split(new RegExp(LEADING_COUNT.source, 'gu'));
