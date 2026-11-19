@@ -1189,13 +1189,13 @@ footer.disclaimer {
 
 /* Números na letra ("3te", "se3rá"): cinza levemente claro. */
 .lyric-count {
-  color: var(--muted);
-  opacity: 0.85;
+  color: #b4b9be;
 }
 
 @media (prefers-color-scheme: light) {
   .lyric-count {
-    opacity: 0.6;
+    color: var(--muted);
+    opacity: 0.45;
   }
 }
 
