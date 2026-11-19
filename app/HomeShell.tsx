@@ -29,6 +29,22 @@ import {
 
 const UNDO_MAX_STEPS = 100;
 
+// Lápis: editar a letra direto na apresentação (ChordProEditView).
+const PENCIL_ICON = (
+  <svg
+    width="16"
+    height="16"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z" />
+  </svg>
+);
+
 /** Gesto de deslizar pra esquerda que recolhe uma música do setlist. */
 const SWIPE_MIN_DISTANCE = 60;
 const SWIPE_MAX_MS = 700;
@@ -84,10 +100,11 @@ const FLOW_ICON = (
 import { songMatchScore, MATCH_THRESHOLD } from '@/lib/fuzzyMatch';
 import type { Setlist, SavedSong } from '@/lib/store';
 import ChordProView from './ChordProView';
+import ChordProEditView from './ChordProEditView';
 import { useDampedTouchScroll } from './useDampedTouchScroll';
 
 type Mode = 'search' | 'saved' | 'setlists';
-type ViewMode = 'view' | 'code';
+type ViewMode = 'view' | 'edit' | 'code';
 
 const KEY_OPTIONS = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
 // Espelha lib/store.ts DEFAULT_SETTINGS — usados como base do "100%" nos
@@ -307,6 +324,8 @@ export default function Home({
   // Músicas recolhidas no setlist (só o título aparece), por índice — zera
   // nas mesmas situações do grau por música, exceto ao mexer no grau geral.
   const [setlistSongCollapsed, setSetlistSongCollapsed] = useState<Record<number, boolean>>({});
+  // Música do setlist em edição da letra (lápis), por índice.
+  const [setlistSongEditing, setSetlistSongEditing] = useState<number | null>(null);
   const [addingToSetlist, setAddingToSetlist] = useState(false);
   const [reorderingSetlist, setReorderingSetlist] = useState(false);
   const [setlistMenuOpen, setSetlistMenuOpen] = useState(false);
@@ -732,7 +751,7 @@ export default function Home({
   // isn't saved yet, same as the manual save button). Fora do código, só uma
   // música já salva é gravada sozinha (ex: ajuste de acordes pelo menu).
   useEffect(() => {
-    if (!dirty || saving || (viewMode !== 'code' && !viewerMeta.id)) return;
+    if (!dirty || saving || (viewMode === 'view' && !viewerMeta.id)) return;
     const timer = setTimeout(() => {
       handleSave();
     }, 1200);
@@ -1022,7 +1041,7 @@ export default function Home({
   const setlistSwipeRef = useRef<{ x: number; y: number; time: number } | null>(null);
 
   function handleSetlistSongTouchStart(e: React.TouchEvent) {
-    if (e.touches.length !== 1) {
+    if (e.touches.length !== 1 || (e.target as Element).closest('.chordpro-edit-view')) {
       setlistSwipeRef.current = null;
       return;
     }
@@ -1065,6 +1084,54 @@ export default function Home({
     if (allCollapsed) scrollToSetlistSong(index);
   }
 
+  /** Grava um novo código ChordPro numa música salva, mantendo o resto. */
+  async function putSongChordpro(song: SavedSong, chordpro: string): Promise<SavedSong> {
+    const res = await fetch(`/api/songs/${song.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: song.title,
+        artist: song.artist,
+        key: song.key,
+        preferredKey: song.preferredKey,
+        capo: song.capo,
+        sourceUrl: song.sourceUrl,
+        chordpro,
+      }),
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data?.song) throw new Error(data?.error || 'Erro ao salvar a música.');
+    return data.song as SavedSong;
+  }
+
+  /** Reflete músicas recém-salvas no setlist aberto e na lista de salvas. */
+  function applySavedSongsToSetlist(saved: Map<string, SavedSong>) {
+    if (saved.size === 0) return;
+    setOpenSetlist((prev) =>
+      prev
+        ? {
+            ...prev,
+            items: prev.items.map((item) =>
+              item.song && saved.has(item.song.id) ? { ...item, song: saved.get(item.song.id)! } : item
+            ),
+          }
+        : prev
+    );
+    setSavedSongs((prev) => (prev ? prev.map((s) => saved.get(s.id) ?? s) : prev));
+  }
+
+  /** Edição da letra de uma música do setlist (lápis): mostra na hora e
+   * salva a música. */
+  async function saveSetlistSongText(song: SavedSong, chordpro: string) {
+    applySavedSongsToSetlist(new Map([[song.id, { ...song, chordpro }]]));
+    try {
+      applySavedSongsToSetlist(new Map([[song.id, await putSongChordpro(song, chordpro)]]));
+      setOpenSetlistError(null);
+    } catch (err) {
+      setOpenSetlistError(err instanceof Error ? err.message : 'Erro ao salvar a música.');
+    }
+  }
+
   /** Menu do setlist → "Caixa alta nas partes": aplica uppercaseSectionStarts
    * (duas primeiras palavras de cada parte em caixa alta) no código de cada
    * música do setlist e salva as que mudarem. */
@@ -1093,39 +1160,12 @@ export default function Home({
     const failed: string[] = [];
     for (const { song, chordpro } of changed) {
       try {
-        const res = await fetch(`/api/songs/${song.id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            title: song.title,
-            artist: song.artist,
-            key: song.key,
-            preferredKey: song.preferredKey,
-            capo: song.capo,
-            sourceUrl: song.sourceUrl,
-            chordpro,
-          }),
-        });
-        const data = await res.json().catch(() => null);
-        if (!res.ok || !data?.song) throw new Error();
-        saved.set(song.id, data.song as SavedSong);
+        saved.set(song.id, await putSongChordpro(song, chordpro));
       } catch {
         failed.push(song.title);
       }
     }
-    if (saved.size > 0) {
-      setOpenSetlist((prev) =>
-        prev
-          ? {
-              ...prev,
-              items: prev.items.map((item) =>
-                item.song && saved.has(item.song.id) ? { ...item, song: saved.get(item.song.id)! } : item
-              ),
-            }
-          : prev
-      );
-      setSavedSongs((prev) => (prev ? prev.map((s) => saved.get(s.id) ?? s) : prev));
-    }
+    applySavedSongsToSetlist(saved);
     setApplyingSetlistCaps(false);
     if (failed.length) setOpenSetlistError(`Não foi possível salvar: ${failed.join(', ')}.`);
     if (saved.size) setSetlistNotice(`Caixa alta aplicada em ${saved.size} música(s).`);
@@ -1136,7 +1176,7 @@ export default function Home({
     // O card recolhido também: o toque nele só expande a música.
     if (
       (e.target as Element).closest(
-        'button, a, select, input, textarea, label, .chordpro-view-collapsed'
+        'button, a, select, input, textarea, label, [contenteditable], .chordpro-view-collapsed'
       )
     ) {
       lastSetlistTapRef.current = null;
@@ -1197,6 +1237,7 @@ export default function Home({
     setSetlistGrau(true);
     setSetlistSongGrau({});
     setSetlistSongCollapsed({});
+    setSetlistSongEditing(null);
     setAddingToSetlist(false);
     try {
       const res = await fetch(`/api/setlists/${id}`);
@@ -1256,6 +1297,7 @@ export default function Home({
     const updatedItems = openSetlist.items.filter((_, i) => i !== index);
     setSetlistSongGrau({});
     setSetlistSongCollapsed({});
+    setSetlistSongEditing(null);
     setOpenSetlist({ ...openSetlist, items: updatedItems });
     persistSetlistItems(openSetlist.id, openSetlist.name, updatedItems);
   }
@@ -1275,6 +1317,7 @@ export default function Home({
     const updatedItems = arrayMove(openSetlist.items, oldIndex, newIndex);
     setSetlistSongGrau({});
     setSetlistSongCollapsed({});
+    setSetlistSongEditing(null);
     setOpenSetlist({ ...openSetlist, items: updatedItems });
     persistSetlistItems(openSetlist.id, openSetlist.name, updatedItems);
   }
@@ -1865,6 +1908,15 @@ export default function Home({
                 <circle cx="6" cy="18" r="3" />
                 <circle cx="18" cy="16" r="3" />
               </svg>
+            </button>
+            <button
+              type="button"
+              className={viewMode === 'edit' ? 'tab active' : 'tab'}
+              onClick={() => setViewMode('edit')}
+              aria-label="Editar letra"
+              title="Editar letra"
+            >
+              {PENCIL_ICON}
             </button>
             <button
               type="button"
@@ -2725,7 +2777,14 @@ export default function Home({
                     else setlistSongBlockRefs.current.delete(i);
                   }}
                 >
-                  {item.song ? (
+                  {item.song && setlistSongEditing === i ? (
+                    <ChordProEditView
+                      text={item.song.chordpro}
+                      viewKey={(setlistSongGrau[i] ?? setlistGrau) ? 'graus' : item.preferredKey}
+                      onChange={(next) => saveSetlistSongText(item.song!, next)}
+                      onDone={() => setSetlistSongEditing(null)}
+                    />
+                  ) : item.song ? (
                     <ChordProView
                       text={item.song.chordpro}
                       viewKey={(setlistSongGrau[i] ?? setlistGrau) ? 'graus' : item.preferredKey}
@@ -2742,6 +2801,7 @@ export default function Home({
                         onChange: (k) => updateSetlistItemKey(i, k),
                       }}
                       onEditCode={() => openSavedForCodeEdit(item.song!)}
+                      onEditText={() => setSetlistSongEditing(i)}
                       onScrollToTop={() => scrollToSetlistSong(i)}
                       grauToggle={{
                         checked: setlistSongGrau[i] ?? setlistGrau,
@@ -2830,6 +2890,13 @@ export default function Home({
               </button>
             </div>
           </>
+        ) : viewMode === 'edit' ? (
+          <ChordProEditView
+            text={chordpro}
+            viewKey={showGrau ? 'graus' : preferredKey}
+            onChange={(next) => updateChordpro(next)}
+            onDone={() => setViewMode('view')}
+          />
         ) : (
           <ChordProView
             text={chordpro}

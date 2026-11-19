@@ -1192,3 +1192,37 @@ footer.disclaimer {
   color: var(--muted);
   opacity: 0.7;
 }
+
+/* Edição da letra na apresentação (ChordProEditView). */
+.chunk-editable {
+  outline: none;
+  border-bottom: 1px dashed var(--border);
+  min-width: 1ch;
+  cursor: text;
+}
+
+.chunk-editable:focus {
+  border-bottom-color: var(--accent);
+  background: rgba(79, 157, 255, 0.12);
+}
+
+.chunk-editable:empty::before {
+  content: '\00a0\00a0';
+}
+
+.chordpro-edit-hint {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.chordpro-edit-done {
+  font-weight: 600;
+}
+
+/* Botão só com ícone ao lado do link do Cifra Club (lápis, </>). */
+.source-link-icon {
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+}

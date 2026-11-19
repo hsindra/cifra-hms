@@ -177,6 +177,7 @@ export default function ChordProView({
   tagFontSize,
   keySelect,
   onEditCode,
+  onEditText,
   onScrollToTop,
   grauToggle,
   songCollapse,
@@ -206,6 +207,9 @@ export default function ChordProView({
    * (usado na visualização de setlist — a música individual já tem sua
    * própria aba de código, então não precisa deste link). */
   onEditCode?: () => void;
+  /** Quando presente, mostra um lápis antes do ícone de código, que edita a
+   * letra direto na apresentação (usado na visualização de setlist). */
+  onEditText?: () => void;
   /** Quando presente, mostra um botão "topo" no fim da música que rola a
    * tela até o início dela (usado na visualização de setlist). */
   onScrollToTop?: () => void;
@@ -374,11 +378,17 @@ export default function ChordProView({
             cifraclub
           </a>
         )}
-        {onEditCode && (
-          <button type="button" className="source-link" onClick={onEditCode}>
+        {onEditText && (
+          <button
+            type="button"
+            className="source-link source-link-icon"
+            onClick={onEditText}
+            aria-label="Editar letra"
+            title="Editar letra"
+          >
             <svg
-              width="12"
-              height="12"
+              width="14"
+              height="14"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -388,7 +398,19 @@ export default function ChordProView({
             >
               <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z" />
             </svg>
-            código
+          </button>
+        )}
+        {onEditCode && (
+          <button
+            type="button"
+            className="source-link source-link-icon"
+            onClick={onEditCode}
+            aria-label="Código ChordPro"
+            title="Código ChordPro"
+          >
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M10.478 1.647a.5.5 0 1 0-.956-.294l-4 13a.5.5 0 0 0 .956.294l4-13zM4.854 4.146a.5.5 0 0 1 0 .708L1.707 8l3.147 3.146a.5.5 0 0 1-.708.708l-3.5-3.5a.5.5 0 0 1 0-.708l3.5-3.5a.5.5 0 0 1 .708 0zm6.292 0a.5.5 0 0 0 0 .708L14.293 8l-3.147 3.146a.5.5 0 0 0 .708.708l3.5-3.5a.5.5 0 0 0 0-.708l-3.5-3.5a.5.5 0 0 0-.708 0z" />
+            </svg>
           </button>
         )}
         {grauToggle && (
