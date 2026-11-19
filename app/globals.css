@@ -1249,3 +1249,14 @@ footer.disclaimer {
   padding-left: 0.5rem;
   padding-right: 0.5rem;
 }
+
+/* Texto em caixa alta na letra (ex: começo das partes): laranja. */
+.lyric-caps {
+  color: #ff9f43;
+}
+
+@media (prefers-color-scheme: light) {
+  .lyric-caps {
+    color: #d9730d;
+  }
+}

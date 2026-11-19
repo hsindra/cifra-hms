@@ -76,6 +76,9 @@ interface WordPiece {
   lyric: string;
   /** First piece of its chunk — the one the chord sits on. */
   first: boolean;
+  /** Where `lyric` starts in the line's lyric text (tags count as 1 char) —
+   * see capsMask. */
+  offset: number;
 }
 
 /** Groups a line's chunks into whole words, so the line only wraps between
@@ -85,6 +88,7 @@ interface WordPiece {
 function toWordUnits(chunks: ChordProChunk[]): WordPiece[][] {
   const units: WordPiece[][] = [];
   let current: WordPiece[] = [];
+  let offset = 0;
   const close = () => {
     if (current.length) units.push(current);
     current = [];
@@ -92,7 +96,8 @@ function toWordUnits(chunks: ChordProChunk[]): WordPiece[][] {
   chunks.forEach((chunk, index) => {
     if (chunk.kind === 'tag') {
       close();
-      units.push([{ chunk, index, lyric: '', first: true }]);
+      units.push([{ chunk, index, lyric: '', first: true, offset }]);
+      offset += 1;
       return;
     }
     const pieces = chunk.lyric.match(/(?:<[^>]*>|\S)*\s*/g)?.filter(Boolean) ?? [];
@@ -103,7 +108,8 @@ function toWordUnits(chunks: ChordProChunk[]): WordPiece[][] {
       pieces.splice(0, 2, pieces[0] + pieces[1]);
     }
     pieces.forEach((lyric, k) => {
-      current.push({ chunk, index, lyric, first: k === 0 });
+      current.push({ chunk, index, lyric, first: k === 0, offset });
+      offset += lyric.length;
       if (/\s$/.test(lyric)) close();
     });
   });
@@ -111,27 +117,98 @@ function toWordUnits(chunks: ChordProChunk[]): WordPiece[][] {
   return units;
 }
 
-/** Qualquer número na letra ("3te", "se3rá", "2x" — marcações de repetição
- * e afins) aparece em cinza claro, pra não competir com a letra. */
-const LEADING_COUNT = /(\d+)/u;
+/** Pedaços da letra: números e palavras (o resto, como espaços e pontuação,
+ * fica entre eles). */
+const LYRIC_TOKEN = /(\d+)|([\p{L}'’_-]+)/gu;
 
-function renderCounts(text: string): React.ReactNode {
-  const parts = text.split(new RegExp(LEADING_COUNT.source, 'gu'));
-  if (parts.length === 1) return text;
-  // split com grupo de captura: índices ímpares são os números.
-  return parts.map((part, i) =>
-    i % 2 === 1 ? (
-      <span key={i} className="lyric-count">
-        {part}
-      </span>
-    ) : (
-      part
-    )
+function isAllCaps(word: string): boolean {
+  return /\p{Lu}/u.test(word) && word === word.toLocaleUpperCase('pt-BR');
+}
+
+/** Quais caracteres da letra são "texto em caixa alta" (laranja): palavras
+ * de 2+ letras em maiúsculas, e letras soltas maiúsculas ao lado de outra
+ * palavra maiúscula ("A TUA", "É O"), pra um "A" ou "É" de começo de frase
+ * não ficar laranja à toa. Calculado na linha inteira (ver chords-line), já que a tela desenha
+ * cada palavra separada. */
+function capsMask(text: string): boolean[] {
+  const mask: boolean[] = new Array(text.length).fill(false);
+  const words = [...text.matchAll(LYRIC_TOKEN)].filter((m) => !m[1]);
+  const caps = (m: RegExpMatchArray | undefined) => !!m && isAllCaps(m[0]);
+  words.forEach((m, i) => {
+    const long = m[0].replace(/[^\p{L}]/gu, '').length >= 2;
+    if (caps(m) && (long || caps(words[i - 1]) || caps(words[i + 1]))) {
+      mask.fill(true, m.index!, m.index! + m[0].length);
+    }
+  });
+  return mask;
+}
+
+/** Letra com destaques: qualquer número ("3te", "se3rá") em cinza claro e o
+ * texto em caixa alta (ver capsMask) em laranja. `mask` vem da linha
+ * inteira quando o trecho é parte dela. */
+function renderLyricText(
+  text: string,
+  highlightFirstTwo = false,
+  mask: boolean[] = capsMask(text)
+): React.ReactNode {
+  const styled: { text: string; cls: string }[] = [];
+  let last = 0;
+  for (const m of text.matchAll(LYRIC_TOKEN)) {
+    if (m.index! > last) styled.push({ text: text.slice(last, m.index), cls: '' });
+    styled.push({
+      text: m[0],
+      cls: m[1] ? 'lyric-count' : mask[m.index!] ? 'lyric-caps' : '',
+    });
+    last = m.index! + m[0].length;
+  }
+  if (last < text.length) styled.push({ text: text.slice(last), cls: '' });
+  const render = (parts: typeof styled) =>
+    parts.map((p, i) =>
+      p.cls ? (
+        <span key={i} className={p.cls}>
+          {p.text}
+        </span>
+      ) : (
+        p.text
+      )
+    );
+  if (!highlightFirstTwo) return render(styled);
+
+  // Marca de tempo nos 2 primeiros caracteres — cortada depois de classificar
+  // o trecho inteiro, pra "TUA" não virar "TU" + "A" na hora de decidir a cor.
+  const head: typeof styled = [];
+  const tail: typeof styled = [];
+  let left = 2;
+  for (const p of styled) {
+    if (left <= 0) tail.push(p);
+    else if (p.text.length <= left) {
+      head.push(p);
+      left -= p.text.length;
+    } else {
+      head.push({ ...p, text: p.text.slice(0, left) });
+      tail.push({ ...p, text: p.text.slice(left) });
+      left = 0;
+    }
+  }
+  return (
+    <>
+      <span className="chunk-lyric-highlight">{render(head)}</span>
+      {render(tail)}
+    </>
   );
 }
 
-function renderAnnotated(str: string, highlightFirstTwo: boolean): React.ReactNode {
+function renderAnnotated(
+  str: string,
+  highlightFirstTwo: boolean,
+  mask: boolean[] = capsMask(str)
+): React.ReactNode {
+  // Posição de cada pedaço em `str` (as anotações perdem o "<" e ">").
+  let pos = 0;
   return splitAnnotations(str).map((seg, k) => {
+    const from = pos + (seg.isAnnotation ? 1 : 0);
+    pos += seg.text.length + (seg.isAnnotation ? 2 : 0);
+    const segMask = mask.slice(from, from + seg.text.length);
     if (seg.isAnnotation) {
       const lines = seg.text.split(ANNOTATION_NEWLINE);
       return (
@@ -148,12 +225,11 @@ function renderAnnotated(str: string, highlightFirstTwo: boolean): React.ReactNo
     if (highlightFirstTwo && k === 0) {
       return (
         <span key={k}>
-          <span className="chunk-lyric-highlight">{renderCounts(seg.text.slice(0, 2))}</span>
-          {renderCounts(seg.text.slice(2))}
+          {renderLyricText(seg.text, true, segMask)}
         </span>
       );
     }
-    return <span key={k}>{renderCounts(seg.text)}</span>;
+    return <span key={k}>{renderLyricText(seg.text, false, segMask)}</span>;
   });
 }
 
@@ -481,11 +557,16 @@ export default function ChordProView({
               </p>
             );
           }
+          // Caixa alta decidida na linha inteira, com as palavras que um
+          // acorde divide ("DA[5]NÇAREMOS") juntas; tag conta como 1 espaço.
+          const lineCaps = capsMask(
+            line.chunks.map((c) => (c.kind === 'tag' ? ' ' : c.lyric)).join('')
+          );
           return (
             <div key={i} className="view-line chords-line">
               {toWordUnits(line.chunks).map((unit, u) => (
                 <span className="chunk-word" key={u}>
-                  {unit.map(({ chunk, index: j, lyric, first }, k) =>
+                  {unit.map(({ chunk, index: j, lyric, first, offset }, k) =>
                     chunk.kind === 'tag' ? (
                       <span className="chunk" key={k}>
                         <span className="chunk-chord">{NBSP}</span>
@@ -511,7 +592,8 @@ export default function ChordProView({
                                   chunk.chord !== null &&
                                   showBeatMark &&
                                   !chunk.chord.endsWith('.') &&
-                                  !chunk.chord.includes('|')
+                                  !chunk.chord.includes('|'),
+                                lineCaps.slice(offset, offset + lyric.length)
                               )
                             : NBSP}
                         </span>
